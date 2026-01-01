@@ -1,0 +1,67 @@
+---
+import aboutContent from "../assets/content/about.md?raw";
+
+// Simple markdown parser for bold text
+function parseMarkdown(text: string): string {
+  // Convert **text** to <strong>text</strong>
+  return text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+}
+
+// Split content into paragraphs
+const paragraphs = aboutContent
+  .split("\n\n")
+  .filter((p) => p.trim().length > 0)
+  .map((p) => parseMarkdown(p.trim()));
+---
+
+<section class="about">
+  <div class="about-box">
+    {paragraphs.map((paragraph) => (
+      <p class="about-text" set:html={paragraph} />
+    ))}
+  </div>
+</section>
+
+<style>
+  .about {
+    max-width: 550px;
+    margin: 0 auto;
+    padding: 0rem 1rem;
+  }
+
+  .about-box {
+    border-radius: 5px;
+    padding: 3rem 4rem;
+    background: rgba(91, 91, 91, 0.01);
+    text-align: left;
+    box-shadow:
+      1.8px 0.6px 48px -12px rgba(0, 0, 0, 0.08),
+      -0.3px 0.1px 12px -2px rgba(0, 0, 0, 0.06),
+      inset 0.34px -0.11px 9px 0px rgba(157, 157, 157, 0.15),
+      inset 0.19px -0.06px 4.3px 0px rgba(255, 255, 255, 0.47);
+
+    backdrop-filter: blur(13px);
+    -webkit-backdrop-filter: blur(13px);
+  }
+
+  .about-text {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: #333;
+    margin: 0 0 1rem 0;
+  }
+
+  .about-text:last-child {
+    margin-bottom: 0;
+  }
+
+  @media (max-width: 640px) {
+    .about {
+      padding: 1.5rem 1rem;
+    }
+
+    .about-text {
+      font-size: 0.95rem;
+    }
+  }
+</style>

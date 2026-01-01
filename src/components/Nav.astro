@@ -1,0 +1,12 @@
+---
+import NavSvelte from './Nav.svelte';
+
+interface Props {
+  currentPage?: string;
+}
+
+const { currentPage = 'home' } = Astro.props;
+---
+
+<NavSvelte client:load currentPage={currentPage} />
+
