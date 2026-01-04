@@ -64,8 +64,13 @@
   let screenWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1920);
   
   let frameWidthPx = $derived.by(() => {
+    // On very large screens, scale up to maintain ~5 columns
     if (screenWidth / BASE_FRAME_WIDTH_PX > 5) {
       return screenWidth / 5;
+    }
+    // On mobile/small screens, scale down proportionally but maintain minimum
+    if (screenWidth < BASE_FRAME_WIDTH_PX) {
+      return Math.max(screenWidth * 0.9, 200); // Use 90% of screen width, min 200px
     }
     return BASE_FRAME_WIDTH_PX;
   });
@@ -82,11 +87,10 @@
     return () => window.removeEventListener('resize', handleResize);
   });
   
-  function getImageDimensions(image: string | ImageMetadata, index: number): { width: number; height: number } {
-    const frameWidth = frameWidthPx;
+  function getImageDimensions(image: string | ImageMetadata, index: number, frameWidth: number): { width: number; height: number } {
     
     if (typeof image === 'object' && image.width && image.height) {
-      // Calculate precise dimensions in grid units, preserving aspect ratio
+      // Calculate precise dimensions in grid units, preserving exact aspect ratio
       const widthInUnits = image.width / frameWidth;
       const heightInUnits = image.height / frameWidth;
       
@@ -102,10 +106,11 @@
         };
       }
       
-      // For landscape/square images, use precise native dimensions
+      // For landscape/square images, preserve exact aspect ratio
+      // Don't force minimum size - let small images be small to maintain aspect ratio
       return { 
-        width: Math.max(1, widthInUnits), 
-        height: Math.max(1, heightInUnits) 
+        width: widthInUnits, 
+        height: heightInUnits 
       };
     }
     // For string URLs, we can't get dimensions without loading the image
@@ -121,7 +126,7 @@
 {#if images.length > 0}
   <BalancedMasonryGrid frameWidth={frameWidthPx} gap={10}>
     {#each images as image, index}
-      {@const dims = getImageDimensions(image, index)}
+      {@const dims = getImageDimensions(image, index, frameWidthPx)}
       <Frame width={dims.width} height={dims.height}>
         <button
           type="button"
