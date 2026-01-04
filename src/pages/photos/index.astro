@@ -1,9 +1,71 @@
 ---
+import Frost from '../../components/Frost.astro';
 import Nav from '../../components/Nav.astro';
 import Layout from '../../layouts/Layout.astro';
+import PhotosGallery from '../../components/gallery/PhotosGallery.svelte';
+
+// Import all images from the photos directory and subdirectories
+const allImageModules = import.meta.glob('../../assets/images/photos/**/*.{jpg,jpeg,png,gif,webp}', {
+	eager: true,
+	import: 'default',
+}) as Record<string, any>;
+
+// Separate images into bnw and color based on directory structure
+// Images in photos/bnw/ or photos/black-white/ go to bnw
+// Images in photos/color/ or directly in photos/ go to color
+// Preserve full ImageMetadata objects to access width and height
+// Also extract filename for caption lookup
+const bnwImages: any[] = [];
+const colorImages: any[] = [];
+
+// Helper to extract filename from import path
+function extractFileName(path: string): string {
+	const parts = path.split('/');
+	const filename = parts[parts.length - 1];
+	return filename;
+}
+
+for (const [path, image] of Object.entries(allImageModules)) {
+	const normalizedPath = path.toLowerCase();
+	
+	// Preserve the full image object (ImageMetadata) if available, otherwise use the src string
+	const imageData = typeof image === 'string' ? image : (image || image?.default);
+	
+	// Extract filename from the import path and attach it to the image data
+	const fileName = extractFileName(path);
+	const imageWithFilename = typeof imageData === 'object' && imageData !== null
+		? { ...imageData, __filename: fileName }
+		: { src: imageData, __filename: fileName };
+	
+	if (normalizedPath.includes('/bnw/') || normalizedPath.includes('/black-white/') || normalizedPath.includes('/blackandwhite/')) {
+		bnwImages.push(imageWithFilename);
+	} else {
+		// Default to color if not explicitly in bnw folder
+		colorImages.push(imageWithFilename);
+	}
+}
 ---
 
 <Layout>
+	<Frost />
 	<Nav currentPage="photos" />
+	<div class="photos-page">
+		<PhotosGallery 
+			client:load
+			bnwImages={bnwImages}
+			colorImages={colorImages}
+		/>
+	</div>
 </Layout>
+
+<style>
+	.photos-page {
+		font-family: 'SUSE Mono', monospace;
+		min-height: 80vh;
+	}
+
+	:global(.photos-page *) {
+		font-family: 'SUSE Mono', monospace;
+	}
+</style>
 

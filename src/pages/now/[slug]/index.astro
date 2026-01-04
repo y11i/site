@@ -1,0 +1,104 @@
+---
+import Frost from '../../../components/Frost.astro';
+import Nav from '../../../components/Nav.astro';
+import Layout from '../../../layouts/Layout.astro';
+import NowEntry from '../../../components/now/NowEntry.astro';
+import { loadNowEntries, type NowEntry as NowEntryType } from '../../../utils/loadNowEntries';
+
+export async function getStaticPaths() {
+	// Import all images from the now folder
+	const imageModules = import.meta.glob('../../../assets/images/now/*.{jpg,jpeg,png,gif,webp}', {
+		eager: true,
+		import: 'default',
+	}) as Record<string, any>;
+
+	// Helper to resolve image paths
+	function resolveImagePath(imagePath: string) {
+		if (imagePath.startsWith('../images/now/')) {
+			const filename = imagePath.replace('../images/now/', '');
+			// Try to find the image in the glob results
+			for (const [key, value] of Object.entries(imageModules)) {
+				if (key.endsWith(filename)) {
+					return typeof value === 'string' ? value : (value?.src || value?.default?.src || value);
+				}
+			}
+		}
+		return imagePath;
+	}
+
+	// Load all entries
+	const entries = loadNowEntries();
+
+	// Return paths for each entry with resolved images
+	return entries.map((entry) => ({
+		params: { slug: entry.slug },
+		props: {
+			entry: {
+				...entry,
+				images: entry.images && Array.isArray(entry.images) 
+					? entry.images.map(resolveImagePath)
+					: []
+			}
+		},
+	}));
+}
+
+interface Props {
+	entry: NowEntryType;
+}
+
+const { entry } = Astro.props;
+---
+
+<Layout>
+	<Frost />
+	<Nav currentPage="now" />
+	<div class="now-page">
+		<div class="back-link">
+			<a href="/now">← Back</a>
+		</div>
+		<NowEntry
+			title={entry.title}
+			date={entry.date}
+			location={entry.location}
+			content={entry.content}
+			images={entry.images || []}
+			showDecorativeLines={false}
+		/>
+	</div>
+</Layout>
+
+<style>
+	.now-page {
+		font-family: 'SUSE Mono', monospace;
+		min-height: 80vh;
+	}
+
+	.back-link {
+		max-width: 500px;
+		margin: 2rem auto 0;
+		padding: 0 1rem;
+	}
+
+	.back-link a {
+		color: #666;
+		text-decoration: none;
+		font-size: 0.9rem;
+		transition: color 0.2s ease;
+	}
+
+	.back-link a:hover {
+		color: #333;
+	}
+
+	:global(.now-page *) {
+		font-family: 'SUSE Mono', monospace;
+	}
+
+	@media (max-width: 640px) {
+		.back-link {
+			margin-top: 1rem;
+		}
+	}
+</style>
+

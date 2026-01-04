@@ -39,14 +39,14 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 3rem 1rem;
+    padding: 2rem 1rem;
     text-align: center;
   }
 
   .page-title {
-    font-size: clamp(2rem, 4vw, 2.5rem);
+    font-size: clamp(2rem, 4vw, 2.25rem);
     font-weight: 400;
-    margin: 0 0 .75rem 0;
+    margin: 0 0 .5rem 0;
     letter-spacing: 0.03em;
     line-height: 1.2;
   }
@@ -80,20 +80,6 @@
     color: #ccc;
     margin: 0 0.25rem;
     user-select: none;
-  }
-
-  @media (max-width: 640px) {
-    .nav-container {
-      padding: 1.5rem 1rem;
-    }
-
-    .page-title {
-      margin-bottom: 1rem;
-    }
-
-    .nav-links {
-      font-size: 0.85rem;
-    }
   }
 </style>
 

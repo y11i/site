@@ -6,5 +6,5 @@ I studied computer science at **Purdue** and currently work at **TikTok**.
 
 Outside of work, I'm lifting, running, making videos, skateboarding, golfing, and learning guitar.
 
-**Reach me**: szeanchoi (at) gmail (dot) com
+**Connect**: szeanchoi (at) gmail (dot) com
 

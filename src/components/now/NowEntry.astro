@@ -1,0 +1,130 @@
+---
+import ImageCarousel from "./ImageCarousel.svelte";
+import type { ImageMetadata } from "astro";
+
+interface Props {
+  title: string;
+  date: string;
+  location?: string;
+  content: string;
+  images?: (string | ImageMetadata)[];
+  showDecorativeLines?: boolean;
+}
+
+const { title, date, location, content, images = [], showDecorativeLines = true } = Astro.props;
+
+// Simple markdown parser for bold text
+function parseMarkdown(text: string): string {
+  return text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+}
+
+// Split content into paragraphs
+const paragraphs = content
+  .split("\n\n")
+  .filter((p) => p.trim().length > 0)
+  .map((p) => parseMarkdown(p.trim()));
+---
+
+<article class={`now-entry ${showDecorativeLines ? 'with-lines' : ''}`}>
+  <h1 class="entry-title">{title}</h1>
+  <div class="entry-meta">
+    <span class="entry-date">{date}</span>
+    {location && <span class="entry-location">{location}</span>}
+  </div>
+
+  <div class="entry-content">
+    {
+      paragraphs.map((paragraph) => (
+        <p class="entry-text" set:html={paragraph} />
+      ))
+    }
+  </div>
+
+  {images && images.length > 0 && <ImageCarousel client:load images={images} />}
+</article>
+
+<style>
+  .now-entry {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 1rem 1rem;
+    font-family: "SUSE Mono", monospace;
+    position: relative;
+  }
+
+  .now-entry.with-lines::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 50px;
+    height: 1px;
+    background: #ddd;
+  }
+
+  .now-entry.with-lines::after {
+    content: "";
+    position: absolute;
+    top: 0px;
+    left: 0;
+    width: 1px;
+    height: 50px;
+    background: #ddd;
+  }
+
+  .entry-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem 0;
+    color: #333;
+    line-height: 1.2;
+  }
+
+  .entry-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    font-size: 0.9rem;
+    color: #666;
+  }
+
+  .entry-date {
+    font-family: "SUSE Mono", monospace;
+    text-align: left;
+  }
+
+  .entry-location {
+    font-family: "SUSE Mono", monospace;
+    text-align: right;
+  }
+
+  .entry-content {
+    margin-bottom: 2rem;
+  }
+
+  .entry-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #333;
+    margin: 0 0 1.5rem 0;
+    font-family: "SUSE Mono", monospace;
+  }
+
+  .entry-text:last-child {
+    margin-bottom: 0;
+  }
+
+  @media (max-width: 640px) {
+    .now-entry {
+      padding: 1.5rem 1rem;
+    }
+
+    .entry-title {
+      font-size: 1.5rem;
+    }
+
+    .entry-text {
+      font-size: 0.95rem;
+    }
+  }
+</style>

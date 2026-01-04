@@ -10,7 +10,11 @@
   },
   "dependencies": {
     "@astrojs/svelte": "^7.2.4",
+    "@masonry-grid/svelte": "^1.1.1",
     "astro": "^5.16.6",
+    "embla-carousel-svelte": "^8.6.0",
+    "glob": "^13.0.0",
+    "gray-matter": "^4.0.3",
     "svelte": "^5.46.1",
     "typescript": "^5.9.3"
   }

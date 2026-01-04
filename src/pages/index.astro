@@ -1,10 +1,44 @@
 ---
+import Frost from '../components/Frost.astro';
 import Nav from '../components/Nav.astro';
 import Layout from '../layouts/Layout.astro';
 import About from '../components/About.astro';
+import HomeImages from '../components/HomeImages.svelte';
+import canyonlands from '../assets/images/home/canyonlands.png';
+import yosemite from '../assets/images/home/yosemite.png';
+import zion from '../assets/images/home/zion.png';
 ---
 
 <Layout>
+	<Frost />
 	<Nav currentPage="home" />
-	<About />
+	<div class="content-area">
+		<About />
+		<HomeImages 
+			client:load
+			canyonlands={canyonlands}
+			yosemite={yosemite}
+			zion={zion}
+		/>
+	</div>
 </Layout>
+
+<style>
+	.content-area {
+		position: relative;
+		width: 100%;
+		min-height: 80vh;
+	}
+
+	:global(.about) {
+		position: relative;
+		z-index: 2;
+	}
+
+	@media (max-width: 640px) {
+		.content-area {
+			padding: 2rem 1rem;
+			min-height: 70vh;
+		}
+	}
+</style>
