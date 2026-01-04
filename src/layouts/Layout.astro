@@ -1,5 +1,14 @@
 ---
 import Footer from '../components/Footer.astro';
+
+interface Props {
+	title?: string;
+	description?: string;
+}
+
+const { title, description } = Astro.props;
+const baseTitle = 'YSC';
+const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
 ---
 
 <!doctype html>
@@ -19,7 +28,8 @@ import Footer from '../components/Footer.astro';
       href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=SUSE+Mono:ital,wght@0,100..800;1,100..800&display=swap"
       rel="stylesheet"
     />
-    <title>YSC - Sean Choi</title>
+    <title>{fullTitle}</title>
+    {description && <meta name="description" content={description} />}
   </head>
   <body>
     <main class="main-content">

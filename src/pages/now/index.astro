@@ -49,7 +49,10 @@ const archiveEntries = sortedEntries.slice(1);
 const currentPage = Number(Astro.url.searchParams.get('page') || '1');
 ---
 
-<Layout>
+<Layout
+	title="Now"
+	description="Current updates from Sean Choi, plus the archive of past notes."
+>
 	<Frost />
 	<Nav currentPage="now" />
 	<div class="now-page">

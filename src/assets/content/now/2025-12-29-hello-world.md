@@ -6,5 +6,5 @@ images: []
 slug: "hello-world"
 ---
 
-Hello World.
+Hello World
 

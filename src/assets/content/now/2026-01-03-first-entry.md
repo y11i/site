@@ -1,7 +1,7 @@
 ---
 title: "First entry"
-date: "January 03, 2026"
-location: "Oswego, IL"
+date: "January 05, 2026"
+location: "San Jose, CA"
 slug: "first-entry"
 ---
 It's roughly been a year since I've graduated from college. I traveled a good bit and enjoyed my transient NEET life, mostly in Oregon. After an unexpected turn of events, Ali and I both relocated to the Bay. While waiting to return to my previous team in Virginia, I got an offer at TikTok and Ali transferred to UCB from UO.

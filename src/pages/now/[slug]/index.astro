@@ -53,9 +53,22 @@ interface Props {
 }
 
 const { entry } = Astro.props;
+
+function buildDescription(content: string): string {
+	const plainText = content
+		.replace(/[#>*_`~\[\]\(\)!]/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+	return plainText.length > 155 ? `${plainText.slice(0, 155).trim()}...` : plainText;
+}
+
+const description = buildDescription(entry.content);
 ---
 
-<Layout>
+<Layout
+	title={`Now: ${entry.title}`}
+	description={description}
+>
 	<Frost />
 	<Nav currentPage="now" />
 	<div class="now-page">
@@ -106,4 +119,3 @@ const { entry } = Astro.props;
 		}
 	}
 </style>
-
