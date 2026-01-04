@@ -18,7 +18,7 @@ export function parseNowEntry(fileContent: string, slug: string): NowEntry {
 		title: data.title || '',
 		date: data.date || '',
 		location: data.location,
-		images: data.images || [],
+		images: [], // Images are now loaded automatically from images/now/{slug}/ directory
 		slug: data.slug || slug,
 		content: content.trim(),
 	};

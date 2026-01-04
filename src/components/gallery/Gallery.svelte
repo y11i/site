@@ -59,21 +59,42 @@
     focusedCaption = undefined;
   }
 
-  // Helper function to get image dimensions in grid units
-  const FRAME_WIDTH_PX = 400;
+  // Responsive frame width based on screen size
+  const BASE_FRAME_WIDTH_PX = 500;
+  let screenWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1920);
+  
+  let frameWidthPx = $derived.by(() => {
+    if (screenWidth / BASE_FRAME_WIDTH_PX > 5) {
+      return screenWidth / 5;
+    }
+    return BASE_FRAME_WIDTH_PX;
+  });
+
+  // Update screen width on resize
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    
+    function handleResize() {
+      screenWidth = window.innerWidth;
+    }
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  });
   
   function getImageDimensions(image: string | ImageMetadata, index: number): { width: number; height: number } {
+    const frameWidth = frameWidthPx;
+    
     if (typeof image === 'object' && image.width && image.height) {
-      // For vertical images (height > width), cap height at frame width and scale width proportionally
-      if (image.height > image.width) {
-        // Set max height to FRAME_WIDTH_PX (1 grid unit)
-        const maxHeightPx = FRAME_WIDTH_PX;
-        // Calculate width proportionally based on aspect ratio
+      // Calculate precise dimensions in grid units, preserving aspect ratio
+      const widthInUnits = image.width / frameWidth;
+      const heightInUnits = image.height / frameWidth;
+      
+      // For vertical images (height > width), cap height at 1 unit and scale width proportionally
+      if (heightInUnits > widthInUnits && heightInUnits > 1) {
         const aspectRatio = image.width / image.height;
-        const scaledWidthPx = maxHeightPx * aspectRatio;
-        // Convert to grid units
-        const width = Math.round(scaledWidthPx / FRAME_WIDTH_PX * 10) / 10; // Allow decimals for precision
-        const height = 1; // 1 grid unit (FRAME_WIDTH_PX)
+        const width = aspectRatio; // Height is 1, so width = aspect ratio
+        const height = 1;
         
         return { 
           width: Math.max(0.5, width), // Minimum 0.5 units
@@ -81,13 +102,10 @@
         };
       }
       
-      // For landscape/square images, use native dimensions
-      const width = Math.round(image.width / FRAME_WIDTH_PX);
-      const height = Math.round(image.height / FRAME_WIDTH_PX);
-      // Ensure minimum size of 1 unit
+      // For landscape/square images, use precise native dimensions
       return { 
-        width: Math.max(1, width), 
-        height: Math.max(1, height) 
+        width: Math.max(1, widthInUnits), 
+        height: Math.max(1, heightInUnits) 
       };
     }
     // For string URLs, we can't get dimensions without loading the image
@@ -101,7 +119,7 @@
 </script>
 
 {#if images.length > 0}
-  <BalancedMasonryGrid frameWidth={FRAME_WIDTH_PX} gap={10}>
+  <BalancedMasonryGrid frameWidth={frameWidthPx} gap={10}>
     {#each images as image, index}
       {@const dims = getImageDimensions(image, index)}
       <Frame width={dims.width} height={dims.height}>

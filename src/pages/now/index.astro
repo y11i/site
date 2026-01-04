@@ -6,33 +6,40 @@ import NowEntry from '../../components/now/NowEntry.astro';
 import ArchiveList from '../../components/now/ArchiveList.astro';
 import { loadNowEntries, type NowEntry as NowEntryType } from '../../utils/loadNowEntries';
 
-// Import all images from the now folder
-const imageModules = import.meta.glob('../../assets/images/now/*.{jpg,jpeg,png,gif,webp}', {
+// Import all images from the now folder and subdirectories
+const imageModules = import.meta.glob('../../assets/images/now/**/*.{jpg,jpeg,png,gif,webp,JPG,JPEG,PNG,GIF,WEBP}', {
 	eager: true,
 	import: 'default',
 }) as Record<string, any>;
 
-// Helper to resolve image paths
-function resolveImagePath(imagePath: string) {
-	if (imagePath.startsWith('../images/now/')) {
-		const filename = imagePath.replace('../images/now/', '');
-		// Try to find the image in the glob results
-		for (const [key, value] of Object.entries(imageModules)) {
-			if (key.endsWith(filename)) {
-				return typeof value === 'string' ? value : (value?.src || value?.default?.src || value);
-			}
+// Helper to get images for a specific slug
+function getImagesForSlug(slug: string): any[] {
+	const images: any[] = [];
+	const slugDir = `/now/${slug}/`.toLowerCase();
+	
+	for (const [key, value] of Object.entries(imageModules)) {
+		// Check if the image path includes the slug directory (case-insensitive)
+		if (key.toLowerCase().includes(slugDir)) {
+			const imageData = typeof value === 'string' ? value : (value?.src || value?.default?.src || value);
+			images.push(imageData);
 		}
 	}
-	return imagePath;
+	
+	// Sort by filename for consistent ordering
+	return images.sort((a, b) => {
+		const aPath = typeof a === 'string' ? a : a.src;
+		const bPath = typeof b === 'string' ? b : b.src;
+		return aPath.localeCompare(bPath);
+	});
 }
 
 // Load all entries
 const sortedEntries = loadNowEntries();
 
-// Resolve image paths for the latest entry
+// Get images for the latest entry
 const latestEntry = sortedEntries[0] ? {
 	...sortedEntries[0],
-	images: sortedEntries[0].images?.map(resolveImagePath) || []
+	images: getImagesForSlug(sortedEntries[0].slug)
 } : null;
 
 // Get archive entries (all except latest)

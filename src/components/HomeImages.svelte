@@ -61,45 +61,9 @@
 		transform: rotate(-5deg);
 	}
 
-	@media (max-width: 1024px) {
+	@media (max-width: 1200px) {
 		img {
-			width: 250px;
-		}
-
-		.image-1 {
-			left: 2%;
-		}
-
-		.image-2 {
-			right: 5%;
-		}
-
-		.image-3 {
-			left: 10%;
-		}
-	}
-
-	@media (max-width: 640px) {
-		img {
-			width: 180px;
-		}
-
-		.image-1 {
-			top: 2%;
-			left: 0%;
-			transform: rotate(-6deg);
-		}
-
-		.image-2 {
-			top: 15%;
-			right: 0%;
-			transform: rotate(8deg);
-		}
-
-		.image-3 {
-			bottom: 5%;
-			left: 5%;
-			transform: rotate(-4deg);
+			display: none;
 		}
 	}
 </style>
