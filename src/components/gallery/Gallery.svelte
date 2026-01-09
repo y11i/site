@@ -165,13 +165,9 @@
     display: block;
   }
 
-  .image-button:hover {
-    opacity: 0.95;
-  }
-
   .image-button:focus {
     outline: 2px solid rgba(0, 0, 0, 0.3);
-    outline-offset: 2px;
+    outline-offset: 1px;
   }
 </style>
 
