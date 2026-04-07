@@ -1,9 +1,9 @@
-Hi, I go by **Sean Choi**.
+Hi, I go by **Sean**.
 
-I'm a software engineer and photographer exploring how human intuition becomes useful systems and interfaces.
+I'm a software engineer and photographer. 
 
-I studied computer science at **Purdue** and most recently worked at **TikTok**.
+I studied computer science at **Purdue** and work at **Valon** as a software engineer on the Labs team, applying AI to regulated finance. Previously, I was at **TikTok** supporting creator monetization.
 
-Outside of work, I'm lifting, running, reading, making videos, skateboarding, golfing, and learning guitar.
+Outside of work, I like to read, make videos, skateboard, golf, exercise, and play guitar.
 
-**Connect**: szeanchoi (at) gmail (dot) com
+**Happy to chat**: szeanchoi (at) gmail (dot) com

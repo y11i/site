@@ -1,5 +1,4 @@
 ---
-import Frost from '../../components/Frost.astro';
 import Nav from '../../components/Nav.astro';
 import Layout from '../../layouts/Layout.astro';
 import PhotosGallery from '../../components/gallery/PhotosGallery.svelte';
@@ -50,7 +49,6 @@ for (const [path, image] of Object.entries(allImageModules)) {
 	title="Photos"
 	description="Photography by Sean Choi, featuring color and black-and-white galleries."
 >
-	<Frost />
 	<Nav currentPage="photos" />
 	<div class="photos-page">
 		<PhotosGallery 

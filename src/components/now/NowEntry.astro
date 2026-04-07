@@ -26,21 +26,31 @@ const paragraphs = content
 ---
 
 <article class={`now-entry ${showDecorativeLines ? 'with-lines' : ''}`}>
-  <h1 class="entry-title">{title}</h1>
-  <div class="entry-meta">
+  <h1 class="entry-title" data-motion="text" data-motion-repeat="false">{title}</h1>
+  <div class="entry-meta" data-motion="text" data-motion-repeat="false" style="--motion-delay: 80ms;">
     <span class="entry-date">{date}</span>
     {location && <span class="entry-location">{location}</span>}
   </div>
 
   <div class="entry-content">
     {
-      paragraphs.map((paragraph) => (
-        <p class="entry-text" set:html={paragraph} />
+      paragraphs.map((paragraph, index) => (
+        <p
+          class="entry-text"
+          data-motion="text"
+          data-motion-repeat="false"
+          style={`--motion-delay: ${140 + index * 90}ms;`}
+          set:html={paragraph}
+        />
       ))
     }
   </div>
 
-  {images && images.length > 0 && <ImageCarousel client:load images={images} />}
+  {images && images.length > 0 && (
+    <div class="entry-carousel" data-motion="media" data-motion-repeat="false" style="--motion-delay: 180ms;">
+      <ImageCarousel client:load images={images} />
+    </div>
+  )}
 </article>
 
 <style>
@@ -112,5 +122,9 @@ const paragraphs = content
 
   .entry-text:last-child {
     margin-bottom: 0;
+  }
+
+  .entry-carousel {
+    margin-top: 0.5rem;
   }
 </style>

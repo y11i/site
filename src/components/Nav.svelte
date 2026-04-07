@@ -39,7 +39,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 2rem 1rem;
+    padding: 4.5rem 1rem 2rem;
     text-align: center;
   }
 
@@ -81,5 +81,10 @@
     margin: 0 0.25rem;
     user-select: none;
   }
-</style>
 
+  @media (max-width: 640px) {
+    .nav-container {
+      padding: 3.5rem 1rem 1.75rem;
+    }
+  }
+</style>

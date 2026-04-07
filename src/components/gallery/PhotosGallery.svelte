@@ -24,7 +24,7 @@
 </script>
 
 <div class="photos-gallery">
-  <div class="toggle-container">
+  <div class="toggle-container" data-motion="text" data-motion-repeat="false">
     <button
       type="button"
       class="toggle-switch"
@@ -138,4 +138,3 @@
     }
   }
 </style>
-

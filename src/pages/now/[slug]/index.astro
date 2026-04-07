@@ -1,5 +1,4 @@
 ---
-import Frost from '../../../components/Frost.astro';
 import Nav from '../../../components/Nav.astro';
 import Layout from '../../../layouts/Layout.astro';
 import NowEntry from '../../../components/now/NowEntry.astro';
@@ -69,10 +68,9 @@ const description = buildDescription(entry.content);
 	title={`Now: ${entry.title}`}
 	description={description}
 >
-	<Frost />
 	<Nav currentPage="now" />
 	<div class="now-page">
-		<div class="back-link">
+		<div class="back-link" data-motion="text" data-motion-repeat="false">
 			<a href="/now">← Back</a>
 		</div>
 		<NowEntry

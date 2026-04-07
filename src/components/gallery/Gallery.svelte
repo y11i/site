@@ -133,6 +133,9 @@
           class="image-button"
           onclick={() => handleImageClick(image)}
           aria-label={`View ${altText} ${index + 1}`}
+          data-motion="image"
+          data-motion-repeat="false"
+          style="--motion-delay: 0ms; --motion-transform-hidden: none; --motion-transform-visible: none;"
         >
           <img 
             src={getImageSrc(image)} 
@@ -170,4 +173,3 @@
     outline-offset: 1px;
   }
 </style>
-

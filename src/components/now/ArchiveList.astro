@@ -26,11 +26,17 @@ function formatDate(dateString: string): string {
 ---
 
 <section class="archive-section">
-	<h2 class="archive-title">Archive</h2>
+	<h2 class="archive-title" data-motion="text" data-motion-repeat="false">Archive</h2>
 
 	<div class="archive-entries">
-		{paginatedEntries.map((entry) => (
-			<a href={`/now/${entry.slug}`} class="archive-entry">
+		{paginatedEntries.map((entry, index) => (
+			<a
+				href={`/now/${entry.slug}`}
+				class="archive-entry"
+				data-motion="text"
+				data-motion-repeat="false"
+				style={`--motion-delay: ${80 + index * 90}ms;`}
+			>
 				<div class="archive-entry-content">
 					<h3 class="archive-entry-title">{entry.title}</h3>
 					<div class="archive-entry-meta">
@@ -45,7 +51,7 @@ function formatDate(dateString: string): string {
 	</div>
 
 	{totalPages > 1 && (
-		<div class="archive-pagination">
+		<div class="archive-pagination" data-motion="text" data-motion-repeat="false" style="--motion-delay: 240ms;">
 			{Array.from({ length: totalPages }, (_, i) => (
 				<button
 					class={`pagination-dot ${i + 1 === currentPage ? 'active' : ''}`}
@@ -203,4 +209,3 @@ function formatDate(dateString: string): string {
 		});
 	});
 </script>
-

@@ -1,5 +1,6 @@
 ---
 import Footer from '../components/Footer.astro';
+import { ClientRouter, fade } from 'astro:transitions';
 
 interface Props {
 	title?: string;
@@ -30,16 +31,247 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
     />
     <title>{fullTitle}</title>
     {description && <meta name="description" content={description} />}
+    <ClientRouter />
   </head>
   <body>
-    <main class="main-content">
+    <main class="main-content" transition:animate={fade({ duration: '0.28s' })}>
       <slot />
     </main>
     <Footer />
+    <script is:inline>
+      (() => {
+        if (typeof window === 'undefined') return;
+
+        const stateKey = '__yscMotionState';
+        const eventsKey = '__yscMotionEventsBound';
+        const scrollKey = '__yscSmoothScrollState';
+
+        function revealAllMotionElements() {
+          document.documentElement.classList.remove('motion-enabled');
+          document.querySelectorAll('[data-motion]').forEach((element) => {
+            if (element instanceof HTMLElement) {
+              element.classList.add('is-inview');
+              element.dataset.motionReady = 'true';
+            }
+          });
+        }
+
+        function setupMotionSystem() {
+          const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          const previousState = window[stateKey];
+
+          previousState?.observer?.disconnect();
+          previousState?.mutationObserver?.disconnect();
+
+          if (reducedMotion) {
+            revealAllMotionElements();
+            window[stateKey] = null;
+            return;
+          }
+
+          document.documentElement.classList.add('motion-enabled');
+
+          document.querySelectorAll('[data-motion]').forEach((element) => {
+            if (!(element instanceof HTMLElement)) return;
+
+            delete element.dataset.motionReady;
+
+            if (element.dataset.motionRepeat !== 'false') {
+              element.classList.remove('is-inview');
+            }
+          });
+
+          const observer = new IntersectionObserver(
+            (entries) => {
+              entries.forEach((entry) => {
+                const element = entry.target;
+
+                if (!(element instanceof HTMLElement)) return;
+
+                const shouldRepeat = element.dataset.motionRepeat !== 'false';
+
+                if (entry.isIntersecting) {
+                  element.classList.add('is-inview');
+
+                  if (!shouldRepeat) {
+                    observer.unobserve(element);
+                  }
+
+                  return;
+                }
+
+                if (shouldRepeat) {
+                  element.classList.remove('is-inview');
+                }
+              });
+            },
+            {
+              threshold: 0.18,
+              rootMargin: '0px 0px -10% 0px',
+            }
+          );
+
+          function registerElement(element) {
+            if (!(element instanceof HTMLElement)) return;
+            if (element.dataset.motionReady === 'true') return;
+
+            element.dataset.motionReady = 'true';
+            element.classList.remove('is-inview');
+            observer.observe(element);
+          }
+
+          function scan(node) {
+            if (!node) return;
+
+            if (node instanceof HTMLElement && node.matches('[data-motion]')) {
+              registerElement(node);
+            }
+
+            if ('querySelectorAll' in node) {
+              node.querySelectorAll('[data-motion]').forEach(registerElement);
+            }
+          }
+
+          scan(document);
+
+          const mutationObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+              mutation.addedNodes.forEach((node) => {
+                scan(node);
+              });
+            });
+          });
+
+          if (document.body) {
+            mutationObserver.observe(document.body, {
+              childList: true,
+              subtree: true,
+            });
+          }
+
+          window[stateKey] = { observer, mutationObserver };
+        }
+
+        function setupSmoothScroll() {
+          const previousState = window[scrollKey];
+          previousState?.cleanup?.();
+
+          const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          const finePointer = window.matchMedia('(pointer: fine)').matches;
+
+          if (reducedMotion || !finePointer) {
+            window[scrollKey] = null;
+            return;
+          }
+
+          let targetY = window.scrollY;
+          let currentY = window.scrollY;
+          let rafId = 0;
+
+          function hasScrollableParent(target) {
+            let node = target instanceof Element ? target : null;
+
+            while (node && node !== document.body) {
+              const style = window.getComputedStyle(node);
+              const canScroll =
+                /(auto|scroll|overlay)/.test(style.overflowY) && node.scrollHeight > node.clientHeight;
+
+              if (canScroll) {
+                return true;
+              }
+
+              node = node.parentElement;
+            }
+
+            return false;
+          }
+
+          function step() {
+            const delta = targetY - currentY;
+
+            if (Math.abs(delta) < 0.4) {
+              currentY = targetY;
+              window.scrollTo(0, currentY);
+              rafId = 0;
+              return;
+            }
+
+            currentY += delta * 0.12;
+            window.scrollTo(0, currentY);
+            rafId = window.requestAnimationFrame(step);
+          }
+
+          function onWheel(event) {
+            if (
+              event.defaultPrevented ||
+              event.ctrlKey ||
+              Math.abs(event.deltaY) < Math.abs(event.deltaX) ||
+              document.body.style.overflow === 'hidden' ||
+              hasScrollableParent(event.target)
+            ) {
+              return;
+            }
+
+            event.preventDefault();
+
+            const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+            targetY = Math.min(maxScroll, Math.max(0, targetY + event.deltaY));
+
+            if (!rafId) {
+              currentY = window.scrollY;
+              rafId = window.requestAnimationFrame(step);
+            }
+          }
+
+          function onScroll() {
+            if (rafId) return;
+            targetY = window.scrollY;
+            currentY = window.scrollY;
+          }
+
+          window.addEventListener('wheel', onWheel, { passive: false });
+          window.addEventListener('scroll', onScroll, { passive: true });
+
+          window[scrollKey] = {
+            cleanup() {
+              window.removeEventListener('wheel', onWheel);
+              window.removeEventListener('scroll', onScroll);
+
+              if (rafId) {
+                window.cancelAnimationFrame(rafId);
+              }
+            },
+          };
+        }
+
+        if (!window[eventsKey]) {
+          window[eventsKey] = true;
+          window.addEventListener('DOMContentLoaded', setupMotionSystem, { once: true });
+          window.addEventListener('DOMContentLoaded', setupSmoothScroll, { once: true });
+          document.addEventListener('astro:page-load', setupMotionSystem);
+          document.addEventListener('astro:page-load', setupSmoothScroll);
+          document.addEventListener('astro:after-swap', () => {
+            requestAnimationFrame(setupMotionSystem);
+            requestAnimationFrame(setupSmoothScroll);
+          });
+        }
+
+        requestAnimationFrame(setupMotionSystem);
+        requestAnimationFrame(setupSmoothScroll);
+      })();
+    </script>
   </body>
 </html>
 
 <style>
+  :root {
+    --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --motion-enter-duration: 640ms;
+    --motion-enter-duration-fast: 440ms;
+    --motion-exit-duration: 920ms;
+    --motion-exit-duration-fast: 680ms;
+  }
+
   html,
   body {
     font-family: 'Bodoni Moda', 'Times New Roman', serif;
@@ -62,19 +294,49 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
     flex: 1;
   }
 
-
-  .suse-mono-<uniquifier > {
-    font-family: "SUSE Mono", sans-serif;
-    font-optical-sizing: auto;
-    font-weight: <weight>;
-    font-style: normal;
+  :global(.motion-enabled [data-motion]) {
+    opacity: 0;
+    transform: var(--motion-transform-hidden, translate3d(0, var(--motion-y, 18px), 0) scale(var(--motion-scale, 1)));
+    filter: blur(var(--motion-blur, 10px));
+    transition:
+      opacity var(--motion-exit-duration, 920ms) var(--motion-ease),
+      transform var(--motion-exit-duration, 920ms) var(--motion-ease),
+      filter var(--motion-exit-duration-fast, 680ms) ease;
+    transition-delay: 0ms;
+    will-change: opacity, transform, filter;
   }
 
-  .bodoni-moda-<uniquifier > {
-    font-family: "Bodoni Moda", serif;
-    font-optical-sizing: auto;
-    font-weight: <weight>;
-    font-style: normal;
+  :global(.motion-enabled [data-motion='text']) {
+    --motion-y: 20px;
+    --motion-blur: 12px;
+  }
+
+  :global(.motion-enabled [data-motion='media']) {
+    --motion-y: 10px;
+    --motion-scale: 0.985;
+    --motion-blur: 0px;
+  }
+
+  :global(.motion-enabled [data-motion='image']) {
+    --motion-blur: 0px;
+    transition:
+      opacity 900ms ease;
+  }
+
+  :global(.motion-enabled [data-motion].is-inview) {
+    opacity: 1;
+    transform: var(--motion-transform-visible, translate3d(0, 0, 0) scale(1));
+    filter: blur(0);
+    transition:
+      opacity var(--motion-enter-duration, 640ms) var(--motion-ease),
+      transform var(--motion-enter-duration, 640ms) var(--motion-ease),
+      filter var(--motion-enter-duration-fast, 440ms) ease;
+    transition-delay: var(--motion-delay, 0ms);
+  }
+
+  :global(.motion-enabled [data-motion='image'].is-inview) {
+    transition:
+      opacity 720ms ease;
   }
 
   :global(*::selection) {
@@ -109,5 +371,14 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
   :global(html) {
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :global([data-motion]) {
+      opacity: 1 !important;
+      transform: none !important;
+      filter: none !important;
+      transition: none !important;
+    }
   }
 </style>

@@ -1,5 +1,4 @@
 ---
-import Frost from '../../components/Frost.astro';
 import Nav from '../../components/Nav.astro';
 import Layout from '../../layouts/Layout.astro';
 import NowEntry from '../../components/now/NowEntry.astro';
@@ -53,7 +52,6 @@ const currentPage = Number(Astro.url.searchParams.get('page') || '1');
 	title="Now"
 	description="Current updates from Sean Choi, plus the archive of past notes."
 >
-	<Frost />
 	<Nav currentPage="now" />
 	<div class="now-page">
 		{latestEntry && (

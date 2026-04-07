@@ -13,6 +13,9 @@
 	width={400}
 	height={300}
 	loading="lazy"
+	data-motion="image"
+	data-motion-repeat="false"
+	style="--motion-delay: 80ms;"
 />
 
 <img 
@@ -22,6 +25,9 @@
 	width={400}
 	height={300}
 	loading="lazy"
+	data-motion="image"
+	data-motion-repeat="false"
+	style="--motion-delay: 180ms;"
 />
 
 <img 
@@ -31,6 +37,9 @@
 	width={400}
 	height={300}
 	loading="lazy"
+	data-motion="image"
+	data-motion-repeat="false"
+	style="--motion-delay: 280ms;"
 />
 
 <style>
@@ -47,18 +56,24 @@
 		top: 5%;
 		left: 5%;
 		transform: rotate(-8deg);
+		--motion-transform-hidden: rotate(-8deg);
+		--motion-transform-visible: rotate(-8deg);
 	}
 
 	.image-2 {
 		top: 20%;
 		right: 10%;
 		transform: rotate(12deg);
+		--motion-transform-hidden: rotate(12deg);
+		--motion-transform-visible: rotate(12deg);
 	}
 
 	.image-3 {
 		bottom: 10%;
 		left: 15%;
 		transform: rotate(-5deg);
+		--motion-transform-hidden: rotate(-5deg);
+		--motion-transform-visible: rotate(-5deg);
 	}
 
 	@media (max-width: 1200px) {
@@ -67,4 +82,3 @@
 		}
 	}
 </style>
-

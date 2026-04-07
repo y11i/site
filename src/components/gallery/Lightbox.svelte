@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fade, scale } from 'svelte/transition';
   import type { ImageMetadata } from 'astro';
 
   interface Props {
@@ -54,6 +55,8 @@
 {#if isOpen && image}
   <div 
     class="lightbox-backdrop" 
+    in:fade={{ duration: 240 }}
+    out:fade={{ duration: 220 }}
     onclick={handleBackdropClick}
     onkeydown={handleBackdropKeydown}
     tabindex="0"
@@ -68,7 +71,11 @@
     >
       ×
     </button>
-    <div class="lightbox-content">
+    <div
+      class="lightbox-content"
+      in:scale={{ duration: 320, start: 0.96 }}
+      out:scale={{ duration: 220, start: 1, end: 0.985 }}
+    >
       <img 
         src={getImageSrc(image)} 
         alt={caption || 'Gallery image'}
@@ -95,16 +102,6 @@
     z-index: 1000;
     padding: 2rem;
     cursor: pointer;
-    animation: fadeIn 0.2s ease-out;
-  }
-
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
   }
 
   .lightbox-close {
@@ -140,18 +137,6 @@
     flex-direction: column;
     align-items: center;
     cursor: default;
-    animation: zoomIn 0.2s ease-out;
-  }
-
-  @keyframes zoomIn {
-    from {
-      transform: scale(0.95);
-      opacity: 0;
-    }
-    to {
-      transform: scale(1);
-      opacity: 1;
-    }
   }
 
   .lightbox-image {
@@ -190,4 +175,3 @@
     }
   }
 </style>
-
