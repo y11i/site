@@ -44,7 +44,6 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
 
         const stateKey = '__yscMotionState';
         const eventsKey = '__yscMotionEventsBound';
-        const scrollKey = '__yscSmoothScrollState';
 
         function revealAllMotionElements() {
           document.documentElement.classList.remove('motion-enabled');
@@ -91,11 +90,7 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
                 const shouldRepeat = element.dataset.motionRepeat !== 'false';
 
                 if (entry.isIntersecting) {
-                  element.classList.add('is-inview');
-
-                  if (!shouldRepeat) {
-                    observer.unobserve(element);
-                  }
+                  revealElement(element, shouldRepeat);
 
                   return;
                 }
@@ -110,6 +105,80 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
               rootMargin: '0px 0px -10% 0px',
             }
           );
+
+          function waitForImage(image) {
+            if (!(image instanceof HTMLImageElement)) {
+              return Promise.resolve();
+            }
+
+            if (image.complete && image.naturalWidth > 0) {
+              return Promise.resolve();
+            }
+
+            return new Promise((resolve) => {
+              function finish() {
+                image.removeEventListener('load', finish);
+                image.removeEventListener('error', finish);
+                resolve();
+              }
+
+              image.addEventListener('load', finish, { once: true });
+              image.addEventListener('error', finish, { once: true });
+            });
+          }
+
+          function revealElement(element, shouldRepeat) {
+            if (element.dataset.motion === 'image') {
+              if (element.dataset.motionLoaded === 'true') {
+                element.classList.add('is-inview');
+
+                if (!shouldRepeat) {
+                  observer.unobserve(element);
+                }
+
+                return;
+              }
+
+              if (element.dataset.motionLoading === 'true') {
+                return;
+              }
+
+              const images = element.matches('img')
+                ? [element]
+                : Array.from(element.querySelectorAll('img'));
+
+              if (images.length === 0) {
+                element.dataset.motionLoaded = 'true';
+                element.classList.add('is-inview');
+
+                if (!shouldRepeat) {
+                  observer.unobserve(element);
+                }
+
+                return;
+              }
+
+              element.dataset.motionLoading = 'true';
+
+              Promise.all(images.map(waitForImage)).finally(() => {
+                element.dataset.motionLoading = 'false';
+                element.dataset.motionLoaded = 'true';
+                element.classList.add('is-inview');
+
+                if (!shouldRepeat) {
+                  observer.unobserve(element);
+                }
+              });
+
+              return;
+            }
+
+            element.classList.add('is-inview');
+
+            if (!shouldRepeat) {
+              observer.unobserve(element);
+            }
+          }
 
           function registerElement(element) {
             if (!(element instanceof HTMLElement)) return;
@@ -152,112 +221,16 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
           window[stateKey] = { observer, mutationObserver };
         }
 
-        function setupSmoothScroll() {
-          const previousState = window[scrollKey];
-          previousState?.cleanup?.();
-
-          const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-          const finePointer = window.matchMedia('(pointer: fine)').matches;
-
-          if (reducedMotion || !finePointer) {
-            window[scrollKey] = null;
-            return;
-          }
-
-          let targetY = window.scrollY;
-          let currentY = window.scrollY;
-          let rafId = 0;
-
-          function hasScrollableParent(target) {
-            let node = target instanceof Element ? target : null;
-
-            while (node && node !== document.body) {
-              const style = window.getComputedStyle(node);
-              const canScroll =
-                /(auto|scroll|overlay)/.test(style.overflowY) && node.scrollHeight > node.clientHeight;
-
-              if (canScroll) {
-                return true;
-              }
-
-              node = node.parentElement;
-            }
-
-            return false;
-          }
-
-          function step() {
-            const delta = targetY - currentY;
-
-            if (Math.abs(delta) < 0.4) {
-              currentY = targetY;
-              window.scrollTo(0, currentY);
-              rafId = 0;
-              return;
-            }
-
-            currentY += delta * 0.12;
-            window.scrollTo(0, currentY);
-            rafId = window.requestAnimationFrame(step);
-          }
-
-          function onWheel(event) {
-            if (
-              event.defaultPrevented ||
-              event.ctrlKey ||
-              Math.abs(event.deltaY) < Math.abs(event.deltaX) ||
-              document.body.style.overflow === 'hidden' ||
-              hasScrollableParent(event.target)
-            ) {
-              return;
-            }
-
-            event.preventDefault();
-
-            const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-            targetY = Math.min(maxScroll, Math.max(0, targetY + event.deltaY));
-
-            if (!rafId) {
-              currentY = window.scrollY;
-              rafId = window.requestAnimationFrame(step);
-            }
-          }
-
-          function onScroll() {
-            if (rafId) return;
-            targetY = window.scrollY;
-            currentY = window.scrollY;
-          }
-
-          window.addEventListener('wheel', onWheel, { passive: false });
-          window.addEventListener('scroll', onScroll, { passive: true });
-
-          window[scrollKey] = {
-            cleanup() {
-              window.removeEventListener('wheel', onWheel);
-              window.removeEventListener('scroll', onScroll);
-
-              if (rafId) {
-                window.cancelAnimationFrame(rafId);
-              }
-            },
-          };
-        }
-
         if (!window[eventsKey]) {
           window[eventsKey] = true;
           window.addEventListener('DOMContentLoaded', setupMotionSystem, { once: true });
-          window.addEventListener('DOMContentLoaded', setupSmoothScroll, { once: true });
           document.addEventListener('astro:page-load', setupMotionSystem);
-          document.addEventListener('astro:page-load', setupSmoothScroll);
           document.addEventListener('astro:after-swap', () => {
             requestAnimationFrame(setupMotionSystem);
-            requestAnimationFrame(setupSmoothScroll);
           });
         }
 
         requestAnimationFrame(setupMotionSystem);
-        requestAnimationFrame(setupSmoothScroll);
       })();
     </script>
   </body>
@@ -279,6 +252,10 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
     width: 100%;
     min-height: 100%;
     color: #333;
+  }
+
+  html {
+    scroll-behavior: smooth;
   }
 
   body {
@@ -320,7 +297,7 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
   :global(.motion-enabled [data-motion='image']) {
     --motion-blur: 0px;
     transition:
-      opacity 900ms ease;
+      opacity 1150ms ease;
   }
 
   :global(.motion-enabled [data-motion].is-inview) {
@@ -336,7 +313,7 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
 
   :global(.motion-enabled [data-motion='image'].is-inview) {
     transition:
-      opacity 720ms ease;
+      opacity 920ms ease;
   }
 
   :global(*::selection) {
@@ -374,6 +351,10 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
   }
 
   @media (prefers-reduced-motion: reduce) {
+    :global(html) {
+      scroll-behavior: auto;
+    }
+
     :global([data-motion]) {
       opacity: 1 !important;
       transform: none !important;

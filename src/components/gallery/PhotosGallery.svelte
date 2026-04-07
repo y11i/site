@@ -11,16 +11,17 @@
 
   let { bnwImages = [], colorImages = [] }: Props = $props();
 
-  // Toggle between black & white (false) and color (true)
   let isColor = $state(false);
 
-  let currentImages = $derived(isColor ? colorImages : bnwImages);
-  let currentType = $derived<'bnw' | 'color'>(isColor ? 'color' : 'bnw');
-  let currentCaptions = $derived(isColor ? (colorCaptions as Record<string, string>) : (bnwCaptions as Record<string, string>));
-  
   function toggleMode() {
     isColor = !isColor;
   }
+
+  let currentImages = $derived(isColor ? colorImages : bnwImages);
+  let currentType = $derived<'bnw' | 'color'>(isColor ? 'color' : 'bnw');
+  let currentCaptions = $derived(isColor
+    ? (colorCaptions as Record<string, string>)
+    : (bnwCaptions as Record<string, string>));
 </script>
 
 <div class="photos-gallery">
@@ -41,7 +42,9 @@
 
   <div class="gallery-container">
     {#if currentImages.length > 0}
-      <Gallery images={currentImages} type={currentType} captions={currentCaptions} />
+      {#key currentType}
+        <Gallery images={currentImages} type={currentType} captions={currentCaptions} />
+      {/key}
     {:else}
       <p class="no-photos">No photos available</p>
     {/if}
