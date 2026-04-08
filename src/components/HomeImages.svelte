@@ -13,6 +13,8 @@
 	width={400}
 	height={300}
 	loading="lazy"
+	fetchpriority="low"
+	decoding="async"
 	data-motion="image"
 	data-motion-repeat="false"
 	style="--motion-delay: 80ms;"
@@ -25,6 +27,8 @@
 	width={400}
 	height={300}
 	loading="lazy"
+	fetchpriority="low"
+	decoding="async"
 	data-motion="image"
 	data-motion-repeat="false"
 	style="--motion-delay: 180ms;"
@@ -37,6 +41,8 @@
 	width={400}
 	height={300}
 	loading="lazy"
+	fetchpriority="low"
+	decoding="async"
 	data-motion="image"
 	data-motion-repeat="false"
 	style="--motion-delay: 280ms;"

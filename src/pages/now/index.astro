@@ -19,7 +19,7 @@ function getImagesForSlug(slug: string): any[] {
 	for (const [key, value] of Object.entries(imageModules)) {
 		// Check if the image path includes the slug directory (case-insensitive)
 		if (key.toLowerCase().includes(slugDir)) {
-			const imageData = typeof value === 'string' ? value : (value?.src || value?.default?.src || value);
+			const imageData = typeof value === 'string' ? value : (value?.default || value);
 			images.push(imageData);
 		}
 	}

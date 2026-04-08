@@ -141,6 +141,8 @@
             src={getImageSrc(image)} 
             alt={`${altText} ${index + 1}`}
             loading="lazy"
+            fetchpriority="low"
+            decoding="async"
             style="width: 100%; height: 100%; object-fit: cover; display: block;"
           />
         </button>
