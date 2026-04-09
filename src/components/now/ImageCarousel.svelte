@@ -17,14 +17,6 @@
     return image.src;
   }
 
-  function getImageWidth(image: string | ImageMetadata): number | undefined {
-    return typeof image === "string" ? undefined : image.width;
-  }
-
-  function getImageHeight(image: string | ImageMetadata): number | undefined {
-    return typeof image === "string" ? undefined : image.height;
-  }
-
   // Helper function to get image alt text
   function getImageAlt(image: string | ImageMetadata, index: number): string {
     return `Image ${index + 1}`;
@@ -50,10 +42,6 @@
   function goToSlide(index: number) {
     emblaApi?.scrollTo(index);
   }
-
-  function shouldLoadImage(index: number): boolean {
-    return Math.abs(selectedIndex - index) <= 1;
-  }
 </script>
 
 {#if images.length > 0}
@@ -63,10 +51,8 @@
         {#each images as image, index}
           <div class="embla__slide">
             <img
-              src={shouldLoadImage(index) ? getImageSrc(image) : undefined}
+              src={getImageSrc(image)}
               alt={getImageAlt(image, index)}
-              width={getImageWidth(image)}
-              height={getImageHeight(image)}
               loading={index === 0 ? "eager" : "lazy"}
               fetchpriority={index === 0 ? "high" : "low"}
               decoding="async"

@@ -11,7 +11,7 @@
 
   let { bnwImages = [], colorImages = [] }: Props = $props();
 
-  let isColor = $state(false);
+  let isColor = $state(true);
 
   function toggleMode() {
     isColor = !isColor;
@@ -34,9 +34,9 @@
       aria-label="Toggle between black and white and color photos"
       aria-pressed={isColor}
     >
-      <span class="toggle-label" class:active={!isColor}>Black & White</span>
-      <span class="toggle-slider"></span>
       <span class="toggle-label" class:active={isColor}>Color</span>
+      <span class="toggle-slider"></span>
+      <span class="toggle-label" class:active={!isColor}>Black & White</span>
     </button>
   </div>
 
@@ -105,7 +105,7 @@
 
   .toggle-slider {
     position: absolute;
-    left: 3px;
+    left: calc(50% + 0px);
     top: 3px;
     width: calc(50% - 3px);
     height: calc(100% - 6px);
@@ -116,7 +116,7 @@
   }
 
   .toggle-switch.active .toggle-slider {
-    transform: translateX(100%);
+    transform: translateX(-100%);
     background: rgba(208, 208, 208, 0.6);
   }
 

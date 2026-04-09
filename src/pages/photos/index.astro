@@ -52,7 +52,7 @@ for (const [path, image] of Object.entries(allImageModules)) {
 	<Nav currentPage="photos" />
 	<div class="photos-page">
 		<PhotosGallery 
-			client:load
+			client:idle
 			bnwImages={bnwImages}
 			colorImages={colorImages}
 		/>
