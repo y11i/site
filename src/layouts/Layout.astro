@@ -7,7 +7,7 @@ interface Props {
 }
 
 const { title, description } = Astro.props;
-const baseTitle = 'YSC';
+const baseTitle = 'Ysc';
 const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
 ---
 
@@ -182,8 +182,8 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
 <style>
   :root {
     --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
-    --motion-enter-duration: 640ms;
-    --motion-enter-duration-fast: 440ms;
+    --motion-enter-duration: 750ms;
+    --motion-enter-duration-fast: 550ms;
     --motion-exit-duration: 920ms;
     --motion-exit-duration-fast: 680ms;
   }
