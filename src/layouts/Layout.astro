@@ -1,5 +1,6 @@
 ---
 import Footer from '../components/Footer.astro';
+import ShaderBackground from '../components/ShaderBackground.astro';
 
 interface Props {
 	title?: string;
@@ -32,6 +33,7 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
     {description && <meta name="description" content={description} />}
   </head>
   <body>
+    <ShaderBackground />
     <main class="main-content">
       <slot />
     </main>
@@ -211,8 +213,19 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
     background-size: 25px 25px;
   }
 
+  :global(.shader-background-active body) {
+    background-image: none;
+  }
+
   .main-content {
+    position: relative;
+    z-index: 1;
     flex: 1;
+  }
+
+  :global(body > footer) {
+    position: relative;
+    z-index: 1;
   }
 
   :global(.motion-enabled [data-motion]) {
