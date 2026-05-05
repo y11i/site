@@ -2,20 +2,21 @@
 import Nav from '../../components/Nav.astro';
 import Layout from '../../layouts/Layout.astro';
 import PhotosGallery from '../../components/gallery/PhotosGallery.svelte';
+import photosMetadata from '../../assets/content/gallery/photos.json';
 
-// Import all images from the photos directory and subdirectories
+// Import all images from the photos directory
 const allImageModules = import.meta.glob('../../assets/images/photos/**/*.{jpg,jpeg,png,gif,webp}', {
 	eager: true,
 	import: 'default',
 }) as Record<string, any>;
 
-// Separate images into bnw and color based on directory structure
-// Images in photos/bnw/ or photos/black-white/ go to bnw
-// Images in photos/color/ or directly in photos/ go to color
-// Preserve full ImageMetadata objects to access width and height
-// Also extract filename for caption lookup
-const bnwImages: any[] = [];
-const colorImages: any[] = [];
+type PhotoMetadata = {
+	fileName: string;
+	caption: string;
+};
+
+const imageModulesByFileName = new Map<string, any>();
+const images: any[] = [];
 
 // Helper to extract filename from import path
 function extractFileName(path: string): string {
@@ -25,44 +26,39 @@ function extractFileName(path: string): string {
 }
 
 for (const [path, image] of Object.entries(allImageModules)) {
-	const normalizedPath = path.toLowerCase();
-	
 	// Preserve the full image object (ImageMetadata) if available, otherwise use the src string
 	const imageData = typeof image === 'string' ? image : (image || image?.default);
 	
 	// Extract filename from the import path and attach it to the image data
 	const fileName = extractFileName(path);
-	const imageWithFilename = typeof imageData === 'object' && imageData !== null
-		? { ...imageData, __filename: fileName }
-		: { src: imageData, __filename: fileName };
-	
-	if (normalizedPath.includes('/bnw/') || normalizedPath.includes('/black-white/') || normalizedPath.includes('/blackandwhite/')) {
-		bnwImages.push(imageWithFilename);
-	} else {
-		// Default to color if not explicitly in bnw folder
-		colorImages.push(imageWithFilename);
-	}
+	imageModulesByFileName.set(fileName, imageData);
+}
+
+for (const photo of photosMetadata as PhotoMetadata[]) {
+	const imageData = imageModulesByFileName.get(photo.fileName);
+	if (!imageData) continue;
+
+	const imageWithMetadata = typeof imageData === 'object' && imageData !== null
+		? { ...imageData, __filename: photo.fileName, caption: photo.caption }
+		: { src: imageData, __filename: photo.fileName, caption: photo.caption };
+
+	images.push(imageWithMetadata);
 }
 ---
 
 <Layout
 	title="Photos"
-	description="Photography by Sean Choi, featuring color and black-and-white galleries."
+	description="Photography by Sean Choi."
 >
 	<Nav currentPage="photos" />
 	<div class="photos-page">
-		<PhotosGallery 
-			client:idle
-			bnwImages={bnwImages}
-			colorImages={colorImages}
-		/>
+		<PhotosGallery client:load images={images} />
 	</div>
 </Layout>
 
 <style>
 	.photos-page {
 		font-family: 'SUSE Mono', monospace;
-		min-height: 80vh;
 	}
 
 	:global(.photos-page *) {

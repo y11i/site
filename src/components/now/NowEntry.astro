@@ -1,6 +1,7 @@
 ---
 import ImageCarousel from "./ImageCarousel.svelte";
 import type { ImageMetadata } from "astro";
+import { parseInlineMarkdown } from "../../utils/markdown";
 
 interface Props {
   title: string;
@@ -13,16 +14,11 @@ interface Props {
 
 const { title, date, location, content, images = [], showDecorativeLines = true } = Astro.props;
 
-// Simple markdown parser for bold text
-function parseMarkdown(text: string): string {
-  return text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-}
-
 // Split content into paragraphs
 const paragraphs = content
   .split("\n\n")
   .filter((p) => p.trim().length > 0)
-  .map((p) => parseMarkdown(p.trim()));
+  .map((p) => parseInlineMarkdown(p.trim()));
 ---
 
 <article class={`now-entry ${showDecorativeLines ? 'with-lines' : ''}`}>
@@ -55,7 +51,7 @@ const paragraphs = content
 
 <style>
   .now-entry {
-    max-width: 550px;
+    max-width: 500px;
     margin: 0 auto;
     padding: 2rem;
     font-family: "SUSE Mono", monospace;
@@ -118,6 +114,16 @@ const paragraphs = content
     color: #333;
     margin: 0 0 1.5rem 0;
     font-family: "SUSE Mono", monospace;
+  }
+
+  .entry-text :global(a) {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+  }
+
+  .entry-text :global(a:visited) {
+    color: inherit;
   }
 
   .entry-text:last-child {

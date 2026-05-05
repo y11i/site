@@ -254,6 +254,7 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
 
   html {
     scroll-behavior: smooth;
+    scrollbar-gutter: stable;
   }
 
   body {
@@ -272,7 +273,7 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
   :global(.motion-enabled [data-motion]) {
     opacity: 0;
     transform: var(--motion-transform-hidden, translate3d(0, var(--motion-y, 18px), 0) scale(var(--motion-scale, 1)));
-    filter: blur(var(--motion-blur, 10px));
+    filter: blur(var(--motion-blur, 5px));
     transition:
       opacity var(--motion-exit-duration, 920ms) var(--motion-ease),
       transform var(--motion-exit-duration, 920ms) var(--motion-ease),
@@ -282,8 +283,8 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
   }
 
   :global(.motion-enabled [data-motion='text']) {
-    --motion-y: 20px;
-    --motion-blur: 12px;
+    --motion-y: 15px;
+    --motion-blur: 5px;
   }
 
   :global(.motion-enabled [data-motion='media']) {
@@ -337,8 +338,8 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
   :global(::-webkit-scrollbar-thumb) {
     background: rgba(0, 0, 0, 0.2);
     border-radius: 10px;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
     transition: background 0.2s ease;
   }
 

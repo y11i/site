@@ -1,9 +1,13 @@
 Hi, I go by **Sean**.
 
-I'm a software engineer and photographer. 
+I currently work at [*Valon*](https://valon.ai/) as a software engineer. 
 
-I studied computer science at **Purdue** and work at **Valon** as a software engineer on the Labs team, applying AI to regulated finance. Previously, I was at **TikTok** supporting creator monetization.
+Previously, I was at *TikTok*.
 
-Outside of work, I like to read, make videos, skateboard, golf, exercise, and play guitar.
 
-**Happy to chat**: szeanchoi (at) gmail (dot) com
+I like to read, make videos, skateboard, golf, exercise, and play guitar. Most of all, I like to take pictures on film, some of which are up on this site.
+
+<br />
+Connect
+
+szeanchoi (at) gmail (dot) com

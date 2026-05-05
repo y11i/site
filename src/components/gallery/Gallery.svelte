@@ -1,22 +1,59 @@
 <script lang="ts">
-  import { BalancedMasonryGrid, Frame } from '@masonry-grid/svelte';
+  import { MasonryGrid as EgMasonryGrid } from '@egjs/grid';
+  import { onDestroy, onMount, tick } from 'svelte';
   import type { ImageMetadata } from 'astro';
   import Lightbox from './Lightbox.svelte';
 
+  type GalleryImage = string | (ImageMetadata & { __filename?: string; caption?: string });
+
   interface Props {
-    images?: (string | ImageMetadata)[];
-    type?: 'bnw' | 'color';
-    captions?: Record<string, string>;
+    images?: GalleryImage[];
   }
 
-  let { images = [], type = 'color', captions = {} }: Props = $props();
+  let { images = [] }: Props = $props();
 
   // State for lightbox
-  let focusedImage = $state<string | ImageMetadata | null>(null);
+  let focusedImage = $state<GalleryImage | null>(null);
   let focusedCaption = $state<string | undefined>(undefined);
+  let gridContainer = $state<HTMLDivElement | null>(null);
+  let masonryGrid = $state<EgMasonryGrid | null>(null);
+
+  async function syncMasonry() {
+    await tick();
+    if (!masonryGrid) return;
+    masonryGrid.syncElements();
+    masonryGrid.renderItems();
+  }
+
+  onMount(() => {
+    if (!gridContainer) return;
+
+    masonryGrid = new EgMasonryGrid(gridContainer, {
+      gap: 10,
+      align: 'stretch',
+      maxStretchColumnSize: 580,
+    });
+
+    masonryGrid.renderItems();
+
+    return () => {
+      masonryGrid?.destroy();
+      masonryGrid = null;
+    };
+  });
+
+  $effect(() => {
+    images.length;
+    gridContainer;
+    syncMasonry();
+  });
+
+  onDestroy(() => {
+    masonryGrid?.destroy();
+  });
 
   // Helper function to get image source
-  function getImageSrc(image: string | ImageMetadata | any): string {
+  function getImageSrc(image: GalleryImage | any): string {
     if (typeof image === 'string') {
       return image;
     }
@@ -27,7 +64,7 @@
   }
 
   // Extract file name from image path
-  function getFileName(image: string | ImageMetadata | any): string {
+  function getFileName(image: GalleryImage | any): string {
     // First check if filename was attached during import
     if (typeof image === 'object' && image !== null && image.__filename) {
       return image.__filename;
@@ -42,13 +79,15 @@
   }
 
   // Get caption for an image
-  function getCaption(image: string | ImageMetadata): string | undefined {
-    const fileName = getFileName(image);
-    return captions[fileName];
+  function getCaption(image: GalleryImage): string | undefined {
+    if (typeof image === 'object' && image !== null && 'caption' in image) {
+      return image.caption;
+    }
+    return undefined;
   }
 
   // Handle image click
-  function handleImageClick(image: string | ImageMetadata) {
+  function handleImageClick(image: GalleryImage) {
     focusedImage = image;
     focusedCaption = getCaption(image);
   }
@@ -59,75 +98,13 @@
     focusedCaption = undefined;
   }
 
-  // Responsive frame width based on screen size
-  const BASE_FRAME_WIDTH_PX = 500;
-  let screenWidth = $state(typeof window !== 'undefined' ? window.innerWidth : 1920);
-  
-  let frameWidthPx = $derived.by(() => {
-    // On very large screens, scale up to maintain ~5 columns
-    if (screenWidth / BASE_FRAME_WIDTH_PX > 5) {
-      return screenWidth / 5;
-    }
-    // On mobile/small screens, scale down proportionally but maintain minimum
-    if (screenWidth < BASE_FRAME_WIDTH_PX) {
-      return Math.max(screenWidth * 0.9, 200); // Use 90% of screen width, min 200px
-    }
-    return BASE_FRAME_WIDTH_PX;
-  });
-
-  // Update screen width on resize
-  $effect(() => {
-    if (typeof window === 'undefined') return;
-    
-    function handleResize() {
-      screenWidth = window.innerWidth;
-    }
-    
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  });
-  
-  function getImageDimensions(image: string | ImageMetadata, index: number, frameWidth: number): { width: number; height: number } {
-    
-    if (typeof image === 'object' && image.width && image.height) {
-      // Calculate precise dimensions in grid units, preserving exact aspect ratio
-      const widthInUnits = image.width / frameWidth;
-      const heightInUnits = image.height / frameWidth;
-      
-      // For vertical images (height > width), cap height at 1 unit and scale width proportionally
-      if (heightInUnits > widthInUnits && heightInUnits > 1) {
-        const aspectRatio = image.width / image.height;
-        const width = aspectRatio; // Height is 1, so width = aspect ratio
-        const height = 1;
-        
-        return { 
-          width: Math.max(0.5, width), // Minimum 0.5 units
-          height: height 
-        };
-      }
-      
-      // For landscape/square images, preserve exact aspect ratio
-      // Don't force minimum size - let small images be small to maintain aspect ratio
-      return { 
-        width: widthInUnits, 
-        height: heightInUnits 
-      };
-    }
-    // For string URLs, we can't get dimensions without loading the image
-    // Use a default aspect ratio as fallback
-    const defaultRatios = [4, 3, 5, 4, 3, 4, 5, 3];
-    const ratio = defaultRatios[index % defaultRatios.length];
-    return { width: 4, height: ratio };
-  }
-
-  let altText = $derived(type === 'bnw' ? 'Black and white photo' : 'Color photo');
+  const altText = 'Photo';
 </script>
 
 {#if images.length > 0}
-  <BalancedMasonryGrid frameWidth={frameWidthPx} gap={10}>
+  <div bind:this={gridContainer} class="gallery-grid gallery-grid--fallback">
     {#each images as image, index}
-      {@const dims = getImageDimensions(image, index, frameWidthPx)}
-      <Frame width={dims.width} height={dims.height}>
+      <div class="gallery-item">
         <button
           type="button"
           class="image-button"
@@ -137,18 +114,18 @@
           data-motion-repeat="false"
           style="--motion-delay: 0ms; --motion-transform-hidden: none; --motion-transform-visible: none;"
         >
-          <img 
-            src={getImageSrc(image)} 
+          <img
+            src={getImageSrc(image)}
             alt={`${altText} ${index + 1}`}
             loading="lazy"
             fetchpriority="low"
             decoding="async"
-            style="width: 100%; height: 100%; object-fit: cover; display: block;"
+            class="gallery-image"
           />
         </button>
-      </Frame>
+      </div>
     {/each}
-  </BalancedMasonryGrid>
+  </div>
 {/if}
 
 <Lightbox 
@@ -159,9 +136,26 @@
 />
 
 <style>
+  .gallery-grid {
+    width: min(100%, 1900px);
+  }
+
+  .gallery-item {
+    width: 100%;
+  }
+
+  .gallery-grid--fallback {
+    column-width: 580px;
+    column-gap: 10px;
+  }
+
+  .gallery-grid--fallback .gallery-item {
+    break-inside: avoid;
+    margin: 0 0 10px;
+  }
+
   .image-button {
     width: 100%;
-    height: 100%;
     padding: 0;
     margin: 0;
     border: none;
@@ -170,8 +164,20 @@
     display: block;
   }
 
+  .gallery-image {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
   .image-button:focus {
     outline: 2px solid rgba(0, 0, 0, 0.3);
     outline-offset: 1px;
+  }
+
+  @media (max-width: 580px) {
+    .gallery-grid {
+      width: 100%;
+    }
   }
 </style>
