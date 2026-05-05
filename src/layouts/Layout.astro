@@ -104,69 +104,14 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
             }
           );
 
-          function waitForImage(image) {
-            if (!(image instanceof HTMLImageElement)) {
-              return Promise.resolve();
-            }
-
-            if (image.complete && image.naturalWidth > 0) {
-              return Promise.resolve();
-            }
-
-            return new Promise((resolve) => {
-              function finish() {
-                image.removeEventListener('load', finish);
-                image.removeEventListener('error', finish);
-                resolve();
-              }
-
-              image.addEventListener('load', finish, { once: true });
-              image.addEventListener('error', finish, { once: true });
-            });
-          }
-
           function revealElement(element, shouldRepeat) {
             if (element.dataset.motion === 'image') {
-              if (element.dataset.motionLoaded === 'true') {
-                element.classList.add('is-inview');
+              element.classList.add('is-inview');
+              element.dataset.motionLoaded = 'true';
 
-                if (!shouldRepeat) {
-                  observer.unobserve(element);
-                }
-
-                return;
+              if (!shouldRepeat) {
+                observer.unobserve(element);
               }
-
-              if (element.dataset.motionLoading === 'true') {
-                return;
-              }
-
-              const images = element.matches('img')
-                ? [element]
-                : Array.from(element.querySelectorAll('img'));
-
-              if (images.length === 0) {
-                element.dataset.motionLoaded = 'true';
-                element.classList.add('is-inview');
-
-                if (!shouldRepeat) {
-                  observer.unobserve(element);
-                }
-
-                return;
-              }
-
-              element.dataset.motionLoading = 'true';
-
-              Promise.all(images.map(waitForImage)).finally(() => {
-                element.dataset.motionLoading = 'false';
-                element.dataset.motionLoaded = 'true';
-                element.classList.add('is-inview');
-
-                if (!shouldRepeat) {
-                  observer.unobserve(element);
-                }
-              });
 
               return;
             }

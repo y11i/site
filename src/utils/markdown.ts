@@ -21,8 +21,15 @@ export function parseInlineMarkdown(text: string): string {
     .replace(/(^|[\s(\[])\*(?!\*)([^*\n]+?)\*(?!\*)/g, "$1<em>$2</em>")
     .replace(/(^|[\s(\[])\_([^_\n]+?)_/g, "$1<em>$2</em>")
     .replace(
-      /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-      (_match, label: string, href: string) =>
-        `<a href="${escapeAttribute(href)}" target="_blank" rel="noopener noreferrer">${label}</a>`,
+      /\[([^\]]+)\]\(((?:https?:\/\/|\/|\.\/|\.\.\/|#)[^\s)]+)\)/g,
+      (_match, label: string, href: string) => {
+        const safeHref = escapeAttribute(href);
+
+        if (/^https?:\/\//.test(href)) {
+          return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+        }
+
+        return `<a href="${safeHref}">${label}</a>`;
+      },
     );
 }

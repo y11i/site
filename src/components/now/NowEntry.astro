@@ -44,7 +44,7 @@ const paragraphs = content
 
   {images && images.length > 0 && (
     <div class="entry-carousel" data-motion="media" data-motion-repeat="false" style="--motion-delay: 180ms;">
-      <ImageCarousel client:idle images={images} />
+      <ImageCarousel client:visible images={images} />
     </div>
   )}
 </article>

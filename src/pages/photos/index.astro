@@ -52,7 +52,7 @@ for (const photo of photosMetadata as PhotoMetadata[]) {
 >
 	<Nav currentPage="photos" />
 	<div class="photos-page">
-		<PhotosGallery client:load images={images} />
+		<PhotosGallery client:idle images={images} />
 	</div>
 </Layout>
 
