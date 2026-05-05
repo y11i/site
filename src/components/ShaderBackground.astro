@@ -87,7 +87,7 @@
 
         float wave = waveField(cell);
         float slowSwell = sin((cell.x + cell.y) * 0.08 + u_time * 0.48);
-        float radius = 1.70 + wave * 0.38 + slowSwell * 0.16;
+        float radius = 1.45 + wave * 0.38 + slowSwell * 0.16;
         float softness = 0.75;
         float dot = 1.0 - smoothstep(radius, radius + softness, distanceToDot);
 
