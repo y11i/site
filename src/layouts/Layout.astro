@@ -197,6 +197,7 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
     width: 100%;
     min-height: 100%;
     color: #333;
+    background-color: #fff;
   }
 
   html {
@@ -205,9 +206,11 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
   }
 
   body {
+    position: relative;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow-x: hidden;
     background-image: 
       radial-gradient(circle at 1px 1px, rgba(0, 0, 0, .05) 1.5px, transparent 0);
     background-size: 25px 25px;

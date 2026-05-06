@@ -25,6 +25,7 @@
       uniform vec2 u_resolution;
       uniform float u_time;
       uniform float u_pixelRatio;
+      uniform float u_scrollY;
 
       vec2 hash2(vec2 point) {
         point = vec2(
@@ -52,38 +53,40 @@
       }
 
       float waveField(vec2 cell) {
-        float primary = sin(cell.x * 0.32 + cell.y * 0.18 + u_time * 0.95);
-        float secondary = sin(cell.x * -0.15 + cell.y * 0.27 + u_time * 0.72);
+        float primary = sin(cell.x * 0.32 + cell.y * 0.18 + u_time * 0.90);
+        float secondary = sin(cell.x * -0.15 + cell.y * 0.27 + u_time * 0.65);
         float noise = perlin(cell * 0.18 + vec2(u_time * 0.16, -u_time * 0.11)) * 1.8;
 
         return (primary * 0.5) + (secondary * 0.25) + (noise * 0.25);
+      }
+
+      vec2 bobField(vec2 cell) {
+        vec2 wave = vec2(
+          sin(cell.y * 0.34 + cell.x * 0.09 + u_time * 1.35),
+          cos(cell.x * 0.26 + cell.y * 0.14 + u_time * 1.08)
+        ) * 4.2;
+        vec2 noise = vec2(
+          perlin(cell * 0.22 + vec2(u_time * 0.38, -u_time * 0.24)),
+          perlin(cell * 0.22 + vec2(6.8 - u_time * 0.27, 1.7 + u_time * 0.34))
+        ) * 6.0;
+        vec2 wiggle = vec2(
+          perlin(cell * 0.62 + vec2(u_time * 0.9, 2.7)),
+          perlin(cell * 0.62 + vec2(-3.1, u_time * 0.82))
+        ) * 1.35;
+
+        return wave + noise + wiggle;
       }
 
       void main() {
         vec2 point = gl_FragCoord.xy / u_pixelRatio;
         vec2 viewport = u_resolution / u_pixelRatio;
         point.y = viewport.y - point.y;
+        point.y += u_scrollY;
 
         float spacing = 35.0;
-        vec2 waveBreeze = vec2(
-          sin(point.y * 0.011 + u_time * 0.62),
-          cos(point.x * 0.009 + u_time * 0.49)
-        ) * 2.2;
-        vec2 noiseBreeze = vec2(
-          perlin(point * 0.018 + vec2(u_time * 0.18, -u_time * 0.12)),
-          perlin(point * 0.018 + vec2(8.4 - u_time * 0.14, -2.1 + u_time * 0.16))
-        ) * 4.2;
-        vec2 breeze = waveBreeze + noiseBreeze;
-
-        vec2 samplePoint = point + breeze;
-        vec2 cell = floor(samplePoint / spacing);
-        vec2 dotWiggle = vec2(
-          perlin(cell * 0.42 + vec2(u_time * 0.52, 2.7)),
-          perlin(cell * 0.42 + vec2(-3.1, u_time * 0.47))
-        ) * 1.35;
-        vec2 local = mod(samplePoint - 1.0 - dotWiggle, spacing);
-        vec2 wrappedLocal = min(local, spacing - local);
-        float distanceToDot = length(wrappedLocal);
+        vec2 cell = floor((point - 1.0 + spacing * 0.5) / spacing);
+        vec2 dotCenter = cell * spacing + 1.0 + bobField(cell);
+        float distanceToDot = length(point - dotCenter);
 
         float wave = waveField(cell);
         float slowSwell = sin((cell.x + cell.y) * 0.08 + u_time * 0.48);
@@ -92,7 +95,7 @@
         float dot = 1.0 - smoothstep(radius, radius + softness, distanceToDot);
 
         float alphaNoise = perlin(cell * 0.24 + vec2(u_time * 0.22, u_time * -0.18));
-        float alphaWave = 0.78 + 0.16 * sin(cell.x * 0.21 + cell.y * 0.34 + u_time * 0.86) + alphaNoise * 0.12;
+        float alphaWave = 0.78 + 0.16 * sin(cell.x * 0.21 + cell.y * 0.34 + u_time * 0.80) + alphaNoise * 0.12;
         float alpha = dot * 0.30 * alphaWave;
 
         gl_FragColor = vec4(0.0, 0.0, 0.0, alpha);
@@ -180,9 +183,10 @@
       const resolutionLocation = gl.getUniformLocation(program, 'u_resolution');
       const timeLocation = gl.getUniformLocation(program, 'u_time');
       const pixelRatioLocation = gl.getUniformLocation(program, 'u_pixelRatio');
+      const scrollYLocation = gl.getUniformLocation(program, 'u_scrollY');
       const positionBuffer = gl.createBuffer();
 
-      if (!positionBuffer || !resolutionLocation || !timeLocation || !pixelRatioLocation) return;
+      if (!positionBuffer || !resolutionLocation || !timeLocation || !pixelRatioLocation || !scrollYLocation) return;
 
       gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
       gl.bufferData(
@@ -210,8 +214,13 @@
 
       function resize() {
         pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-        const width = Math.max(1, Math.ceil(window.innerWidth * pixelRatio));
-        const height = Math.max(1, Math.ceil(window.innerHeight * pixelRatio));
+        const cssWidth = Math.max(1, window.innerWidth);
+        const cssHeight = Math.max(1, window.innerHeight);
+        const width = Math.max(1, Math.ceil(cssWidth * pixelRatio));
+        const height = Math.max(1, Math.ceil(cssHeight * pixelRatio));
+
+        canvas.style.width = `${cssWidth}px`;
+        canvas.style.height = `${cssHeight}px`;
 
         if (canvas.width !== width || canvas.height !== height) {
           canvas.width = width;
@@ -229,6 +238,7 @@
         gl.uniform2f(resolutionLocation, canvas.width, canvas.height);
         gl.uniform1f(timeLocation, elapsed);
         gl.uniform1f(pixelRatioLocation, pixelRatio);
+        gl.uniform1f(scrollYLocation, window.scrollY || window.pageYOffset || 0);
         gl.drawArrays(gl.TRIANGLES, 0, 6);
 
         animationFrame = requestAnimationFrame(render);
