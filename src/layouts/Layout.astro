@@ -29,6 +29,17 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
       href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=SUSE+Mono:ital,wght@0,100..800;1,100..800&display=swap"
       rel="stylesheet"
     />
+    <script is:inline>
+      (() => {
+        if (typeof window === 'undefined') return;
+
+        const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        if (!reducedMotion) {
+          document.documentElement.classList.add('motion-enabled');
+        }
+      })();
+    </script>
     <title>{fullTitle}</title>
     {description && <meta name="description" content={description} />}
   </head>
@@ -72,10 +83,17 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
 
           document.querySelectorAll('[data-motion]').forEach((element) => {
             if (!(element instanceof HTMLElement)) return;
+            const shouldRepeat = element.dataset.motionRepeat !== 'false';
+            const alreadyRevealed = element.classList.contains('is-inview');
+
+            if (!shouldRepeat && alreadyRevealed) {
+              element.dataset.motionReady = 'true';
+              return;
+            }
 
             delete element.dataset.motionReady;
 
-            if (element.dataset.motionRepeat !== 'false') {
+            if (shouldRepeat) {
               element.classList.remove('is-inview');
             }
           });
@@ -128,6 +146,10 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
           function registerElement(element) {
             if (!(element instanceof HTMLElement)) return;
             if (element.dataset.motionReady === 'true') return;
+            if (element.dataset.motionRepeat === 'false' && element.classList.contains('is-inview')) {
+              element.dataset.motionReady = 'true';
+              return;
+            }
 
             element.dataset.motionReady = 'true';
             element.classList.remove('is-inview');

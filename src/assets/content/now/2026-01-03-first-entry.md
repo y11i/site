@@ -1,5 +1,5 @@
 ---
-title: "First entry"
+title: "Post grad life"
 date: "January 04, 2026"
 location: "San Jose, CA"
 slug: "first-entry"
