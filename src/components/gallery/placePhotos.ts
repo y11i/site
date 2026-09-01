@@ -27,9 +27,9 @@ type Rect = {
 };
 
 /**
- * Scratch-pad placement: dense top-first packing that spreads across the
- * full width, then centers the finished group so side margins stay even.
- * Frames stay upright and never overlap.
+ * Scratch-pad placement: start bunched toward the top, then loosen as the
+ * pad fills so the bottom has more air. Frames stay upright and never overlap.
+ * The finished group is centered so side margins stay even.
  */
 export function placePhotos(photos: PhotoMetrics[], canvasWidth: number): ScratchLayout {
   if (canvasWidth <= 0 || photos.length === 0) {
@@ -47,27 +47,31 @@ export function placePhotos(photos: PhotoMetrics[], canvasWidth: number): Scratc
   const occupied: Rect[] = [];
   const placements: PhotoPlacement[] = [];
   let stackY = pad;
+  const lastIndex = Math.max(photos.length - 1, 1);
 
   for (let index = 0; index < photos.length; index++) {
     const photo = photos[index];
     const rng = mulberry32(hashString(`${photo.id}:${index}`));
+    const looseness = index / lastIndex;
     const scale = singleColumn ? 0.94 : 0.9 + rng() * 0.12;
     const portrait = photo.aspectRatio < 1;
+    // Landscapes read smaller than portraits at the same width; give them a bump.
+    const orientationScale = singleColumn ? 1 : portrait ? 0.94 : 1.23;
     const imgW = Math.min(
-      targetWidth * scale * (singleColumn || !portrait ? 1 : 0.94),
+      targetWidth * scale * orientationScale,
       canvasWidth - pad * 2 - FRAME_PAD_X * 2
     );
     const imgH = imgW / photo.aspectRatio;
     const frameW = imgW + FRAME_PAD_X * 2;
     const frameH = imgH + FRAME_PAD_TOP + FRAME_PAD_BOTTOM;
-    const gap = gapMin + rng() * (gapMax - gapMin);
+    const gap = gapMin + looseness * (gapMax - gapMin) + rng() * 8;
 
     let x: number;
     let y: number;
 
     if (singleColumn) {
       x = (canvasWidth - frameW) / 2;
-      y = stackY + rng() * 6;
+      y = stackY + rng() * (6 + looseness * 10);
       stackY = y + frameH + gap;
     } else {
       const spot = findOpenSpot({
@@ -78,6 +82,7 @@ export function placePhotos(photos: PhotoMetrics[], canvasWidth: number): Scratc
         gap,
         occupied,
         rng,
+        looseness,
       });
       x = spot.x;
       y = spot.y;
@@ -114,13 +119,29 @@ function findOpenSpot(args: {
   gap: number;
   occupied: Rect[];
   rng: () => number;
+  looseness: number;
 }): { x: number; y: number } {
-  const { frameW, frameH, canvasWidth, pad, gap, occupied, rng } = args;
+  const { frameW, frameH, canvasWidth, pad, gap, occupied, rng, looseness } = args;
   const minX = pad;
   const maxX = Math.max(pad, canvasWidth - pad - frameW);
   const step = 10;
   const maxBottom = occupied.reduce((max, rect) => Math.max(max, rect.y + rect.height), pad);
   const yLimit = maxBottom + frameH + gap + 40;
+
+  if (occupied.length === 0) {
+    // Start as the left print of a roughly centered pair so the top doesn't drift right.
+    const neighborW = frameW + gap;
+    const canSitBeside = minX + neighborW <= maxX;
+    let x: number;
+    if (canSitBeside) {
+      const pairWidth = frameW * 2 + gap;
+      const pairStart = (canvasWidth - pairWidth) / 2;
+      x = clamp(pairStart + (rng() - 0.5) * 80, minX, maxX - neighborW);
+    } else {
+      x = (minX + maxX) / 2 + (rng() - 0.5) * 50;
+    }
+    return { x: clamp(x, minX, maxX), y: pad + rng() * 10 };
+  }
 
   for (let y = pad; y <= yLimit; y += step) {
     const openXs: number[] = [];
@@ -134,40 +155,55 @@ function findOpenSpot(args: {
 
     if (openXs.length === 0) continue;
 
-    // Prefer the emptier side of the page so prints spread across the width.
+    // Mild cluster early → seek space later, with enough noise to avoid tidy columns.
     let chosenX = openXs[0];
     let bestScore = Infinity;
+    const packPull = (1 - looseness) * 0.45;
+    const spreadPull = looseness * 0.7;
 
     for (const x of openXs) {
       const center = x + frameW / 2;
       let crowding = 0;
+      let columnPenalty = 0;
 
       for (const rect of occupied) {
         const rectCenter = rect.x + rect.width / 2;
         const dist = Math.abs(rectCenter - center);
-        if (dist < canvasWidth * 0.4) {
+        if (dist < canvasWidth * 0.45) {
           crowding += rect.width / (1 + dist * 0.015);
+        }
+        // Prefer a little horizontal drift instead of stacking in one lane.
+        if (dist < frameW * 0.3) {
+          columnPenalty += (1 - dist / (frameW * 0.3)) * 140;
         }
       }
 
-      const score = crowding + rng() * 40;
+      const score =
+        crowding * (spreadPull - packPull) +
+        columnPenalty * (1 - looseness * 0.35) +
+        rng() * (60 + looseness * 50);
       if (score < bestScore) {
         bestScore = score;
         chosenX = x;
       }
     }
 
-    const nudgeX = (rng() - 0.5) * 20;
-    const nudgeY = rng() * 14;
-    const nudged = {
-      x: clamp(chosenX + nudgeX, minX, maxX),
-      y: y + nudgeY,
-      width: frameW,
-      height: frameH,
-    };
+    // Try a few horizontal staggers so rows don't lock into clean columns.
+    const nudgeY = rng() * (12 + looseness * 20);
+    const staggers = [0, 1, -1, 2, -2, 3, -3].map(
+      (slot) => slot * (18 + rng() * 22) + (rng() - 0.5) * 12
+    );
 
-    if (!occupied.some((rect) => overlaps(rect, nudged, gap))) {
-      return { x: nudged.x, y: nudged.y };
+    for (const nudgeX of staggers) {
+      const nudged = {
+        x: clamp(chosenX + nudgeX, minX, maxX),
+        y: y + nudgeY,
+        width: frameW,
+        height: frameH,
+      };
+      if (!occupied.some((rect) => overlaps(rect, nudged, gap))) {
+        return { x: nudged.x, y: nudged.y };
+      }
     }
 
     return { x: chosenX, y };
@@ -186,19 +222,28 @@ function centerHorizontally(
 ): void {
   if (placements.length === 0) return;
 
-  let minX = Infinity;
-  let maxX = -Infinity;
+  // Center on the top of the pad so a wider bottom can't shove the opening sideways.
+  const byY = [...placements].sort((a, b) => a.y - b.y);
+  const focusCount = Math.max(2, Math.ceil(placements.length * 0.35));
+  const focus = byY.slice(0, focusCount);
 
-  for (const placement of placements) {
-    minX = Math.min(minX, placement.x);
-    maxX = Math.max(maxX, placement.x + placement.width);
+  let focusMin = Infinity;
+  let focusMax = -Infinity;
+  for (const placement of focus) {
+    focusMin = Math.min(focusMin, placement.x);
+    focusMax = Math.max(focusMax, placement.x + placement.width);
   }
 
-  const contentWidth = maxX - minX;
-  let dx = (canvasWidth - contentWidth) / 2 - minX;
+  let dx = (canvasWidth - (focusMax - focusMin)) / 2 - focusMin;
 
-  if (minX + dx < pad) dx = pad - minX;
-  if (maxX + dx > canvasWidth - pad) dx = canvasWidth - pad - maxX;
+  let allMin = Infinity;
+  let allMax = -Infinity;
+  for (const placement of placements) {
+    allMin = Math.min(allMin, placement.x + dx);
+    allMax = Math.max(allMax, placement.x + placement.width + dx);
+  }
+  if (allMin < pad) dx += pad - allMin;
+  if (allMax > canvasWidth - pad) dx += canvasWidth - pad - allMax;
 
   for (const placement of placements) {
     placement.x += dx;

@@ -183,13 +183,13 @@
     width: 100%;
     padding: var(--frame-pad-top) var(--frame-pad-x) var(--frame-pad-bottom);
     margin: 0;
-    border: 1px solid rgba(0, 0, 0, 0.06);
+    border: none;
     background: #fff;
     cursor: pointer;
     display: block;
     box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.04),
-      0 3px 8px rgba(0, 0, 0, 0.05);
+      0 1px 3px rgba(0, 0, 0, 0.08),
+      0 5px 14px rgba(0, 0, 0, 0.12);
   }
 
   .photo-frame:focus {
@@ -201,8 +201,6 @@
     width: 100%;
     height: auto;
     display: block;
-    outline: 1px solid rgba(0, 0, 0, 0.1);
-    outline-offset: -1px;
   }
 
   @media (max-width: 580px) {
