@@ -23,7 +23,7 @@
   .photos-gallery {
     display: flex;
     flex-direction: column;
-    padding: 0.5rem 1rem 2rem;
+    padding: 0.25rem 0.5rem 3rem;
     min-height: 80vh;
   }
 
