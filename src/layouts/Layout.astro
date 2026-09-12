@@ -10,6 +10,35 @@ interface Props {
 const { title, description } = Astro.props;
 const baseTitle = 'Ysc';
 const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
+const metaDescription =
+	description ??
+	'Personal site of Sean Choi, featuring work, photography, and current updates.';
+const canonicalURL = new URL(Astro.url.pathname, Astro.site);
+const ogImageURL = new URL('/og.jpg', Astro.site);
+const personSchema = {
+	'@context': 'https://schema.org',
+	'@type': 'Person',
+	name: 'Sean Choi',
+	alternateName: 'Yeonseung Choi',
+	url: 'https://www.ysc.dev',
+	image: ogImageURL.href,
+	jobTitle: 'Software Engineer',
+	worksFor: { '@type': 'Organization', name: 'Valon' },
+	sameAs: [
+		'https://www.linkedin.com/in/szean',
+		'https://github.com/y11i',
+		'https://www.youtube.com/@szeanchoi',
+		'https://www.instagram.com/szeanchoi',
+		'https://x.com/yscdev'
+	]
+};
+const websiteSchema = {
+	'@context': 'https://schema.org',
+	'@type': 'WebSite',
+	name: 'Sean Choi',
+	alternateName: baseTitle,
+	url: 'https://www.ysc.dev'
+};
 ---
 
 <!doctype html>
@@ -41,7 +70,21 @@ const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
       })();
     </script>
     <title>{fullTitle}</title>
-    {description && <meta name="description" content={description} />}
+    <meta name="description" content={metaDescription} />
+    <link rel="canonical" href={canonicalURL.href} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Sean Choi" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={metaDescription} />
+    <meta property="og:url" content={canonicalURL.href} />
+    <meta property="og:image" content={ogImageURL.href} />
+    <meta property="og:locale" content="en_US" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={metaDescription} />
+    <meta name="twitter:image" content={ogImageURL.href} />
+    <script type="application/ld+json" set:html={JSON.stringify(personSchema)} />
+    <script type="application/ld+json" set:html={JSON.stringify(websiteSchema)} />
   </head>
   <body>
     <ShaderBackground />

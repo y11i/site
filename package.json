@@ -9,6 +9,7 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/sitemap": "^3.7.4",
     "@astrojs/svelte": "^7.2.4",
     "astro": "^5.16.6",
     "embla-carousel-svelte": "^8.6.0",
