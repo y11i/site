@@ -7,5 +7,10 @@ import sitemap from '@astrojs/sitemap';
 // https://astro.build/config
 export default defineConfig({
   site: 'https://www.ysc.dev',
-  integrations: [svelte(), sitemap()]
+  integrations: [
+    svelte(),
+    sitemap({
+      filter: (page) => !page.includes('/frame')
+    })
+  ]
 });

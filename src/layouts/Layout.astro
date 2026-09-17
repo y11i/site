@@ -5,9 +5,10 @@ import ShaderBackground from '../components/ShaderBackground.astro';
 interface Props {
 	title?: string;
 	description?: string;
+	noIndex?: boolean;
 }
 
-const { title, description } = Astro.props;
+const { title, description, noIndex = false } = Astro.props;
 const baseTitle = 'Ysc';
 const fullTitle = title ? `${title} - ${baseTitle}` : `${baseTitle}`;
 const metaDescription =
@@ -71,6 +72,7 @@ const websiteSchema = {
     </script>
     <title>{fullTitle}</title>
     <meta name="description" content={metaDescription} />
+    {noIndex && <meta name="robots" content="noindex, nofollow" />}
     <link rel="canonical" href={canonicalURL.href} />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Sean Choi" />

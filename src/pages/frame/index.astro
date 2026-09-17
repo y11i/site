@@ -1,0 +1,48 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import PhotoBorder from '../../components/tools/PhotoBorder.svelte';
+---
+
+<Layout
+	title="Frame"
+	description="Add a border to a photo and download it."
+	noIndex={true}
+>
+	<div class="frame-page">
+		<h1 data-motion="text">Frame</h1>
+		<p class="lede" data-motion="text">
+			Upload a photo, set a border, pick a color, download.
+		</p>
+		<div data-motion="media">
+			<PhotoBorder client:load />
+		</div>
+	</div>
+</Layout>
+
+<style>
+	.frame-page {
+		font-family: 'SUSE Mono', monospace;
+		max-width: 680px;
+		margin: 0 auto;
+		padding: 2rem 1.5rem 4rem;
+	}
+
+	:global(.frame-page *) {
+		font-family: 'SUSE Mono', monospace;
+	}
+
+	h1 {
+		margin: 0 0 0.4rem;
+		color: #333;
+		font-size: 1.35rem;
+		font-weight: 500;
+		letter-spacing: 0.04em;
+	}
+
+	.lede {
+		margin: 0 0 2rem;
+		color: #999;
+		font-size: 0.9rem;
+		line-height: 1.5;
+	}
+</style>
