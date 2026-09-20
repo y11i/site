@@ -10,6 +10,7 @@
   const DIAL_DEG_MAX = 135;
 
   type BorderMode = 'shared' | 'individual';
+  type BorderBasis = 'overall' | 'width' | 'height';
 
   type Photo = {
     id: number;
@@ -23,6 +24,7 @@
   let photos = $state<Photo[]>([]);
   let activeId = $state<number | null>(null);
   let borderMode = $state<BorderMode>('shared');
+  let borderBasis = $state<BorderBasis>('width');
   let sharedBorderPercent = $state(5);
   let sharedBorderColor = $state('#ffffff');
   let individualDirty = $state(false);
@@ -58,6 +60,7 @@
   $effect(() => {
     void currentBorderPercent;
     void currentBorderColor;
+    void borderBasis;
     void activePhoto;
     if (!previewCanvas || !activePhoto?.image.complete) return;
     prepareSampleCanvas();
@@ -69,7 +72,7 @@
     const img = activePhoto?.image;
     if (!canvas || !img || !img.naturalWidth) return;
 
-    const borderPx = borderPixelsFor(img, currentBorderPercent);
+    const borderPx = borderPixelsFor(img, currentBorderPercent, borderBasis);
     const maxPreview = Math.min(560, typeof window !== 'undefined' ? window.innerWidth - 48 : 560);
     const paddedW = img.naturalWidth + borderPx * 2;
     const paddedH = img.naturalHeight + borderPx * 2;
@@ -104,10 +107,15 @@
       .replace(/\.?0+$/, '');
   }
 
-  function borderPixelsFor(img: HTMLImageElement, percent: number) {
+  function borderPixelsFor(img: HTMLImageElement, percent: number, basis: BorderBasis) {
     if (percent <= 0) return 0;
-    const shorterSide = Math.min(img.naturalWidth, img.naturalHeight);
-    return Math.max(1, Math.round(shorterSide * (percent / 100)));
+    const base =
+      basis === 'width'
+        ? img.naturalWidth
+        : basis === 'height'
+          ? img.naturalHeight
+          : Math.min(img.naturalWidth, img.naturalHeight);
+    return Math.max(1, Math.round(base * (percent / 100)));
   }
 
   function loadImage(src: string) {
@@ -193,6 +201,10 @@
     }
 
     borderMode = next;
+  }
+
+  function setBorderBasis(next: BorderBasis) {
+    borderBasis = next;
   }
 
   function setCurrentBorderPercent(value: number) {
@@ -310,7 +322,7 @@
     const rect = previewCanvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * previewCanvas.width;
     const y = ((e.clientY - rect.top) / rect.height) * previewCanvas.height;
-    const borderPx = borderPixelsFor(activePhoto.image, currentBorderPercent);
+    const borderPx = borderPixelsFor(activePhoto.image, currentBorderPercent, borderBasis);
     const scale = previewCanvas.width / (activePhoto.image.naturalWidth + borderPx * 2);
     const inset = borderPx * scale;
 
@@ -334,14 +346,14 @@
 
   function settingsFor(photo: Photo) {
     return borderMode === 'individual'
-      ? { borderPercent: photo.borderPercent, borderColor: photo.borderColor }
-      : { borderPercent: sharedBorderPercent, borderColor: sharedBorderColor };
+      ? { borderPercent: photo.borderPercent, borderColor: photo.borderColor, borderBasis }
+      : { borderPercent: sharedBorderPercent, borderColor: sharedBorderColor, borderBasis };
   }
 
   function framePhoto(photo: Photo) {
-    const { borderPercent, borderColor } = settingsFor(photo);
+    const { borderPercent, borderColor, borderBasis } = settingsFor(photo);
     const img = photo.image;
-    const borderPx = borderPixelsFor(img, borderPercent);
+    const borderPx = borderPixelsFor(img, borderPercent, borderBasis);
     const out = document.createElement('canvas');
     out.width = img.naturalWidth + borderPx * 2;
     out.height = img.naturalHeight + borderPx * 2;
@@ -429,6 +441,10 @@
     sampling = false;
     uploadNotice = '';
   }
+
+  function borderBasisText(basis: BorderBasis) {
+    return basis === 'width' ? 'image width' : basis === 'height' ? 'image height' : 'the shorter image side';
+  }
 </script>
 
 {#snippet controls()}
@@ -456,6 +472,32 @@
 
     <div class="control">
       <span class="label">Border {formatPercent(currentBorderPercent)}%</span>
+      <div class="basis-control" aria-label="Border percentage basis">
+        <button
+          type="button"
+          class="mode-btn"
+          class:active={borderBasis === 'overall'}
+          onclick={() => setBorderBasis('overall')}
+        >
+          Overall
+        </button>
+        <button
+          type="button"
+          class="mode-btn"
+          class:active={borderBasis === 'width'}
+          onclick={() => setBorderBasis('width')}
+        >
+          Width
+        </button>
+        <button
+          type="button"
+          class="mode-btn"
+          class:active={borderBasis === 'height'}
+          onclick={() => setBorderBasis('height')}
+        >
+          Height
+        </button>
+      </div>
       <button
         type="button"
         class="dial"
@@ -466,7 +508,7 @@
         aria-valuemin={MIN_BORDER_PERCENT}
         aria-valuemax={MAX_BORDER_PERCENT}
         aria-valuenow={currentBorderPercent}
-        aria-valuetext="{formatPercent(currentBorderPercent)}% of the shorter image side"
+        aria-valuetext="{formatPercent(currentBorderPercent)}% of {borderBasisText(borderBasis)}"
         role="slider"
         onpointerdown={onDialPointerDown}
         onpointermove={onDialPointerMove}
@@ -533,9 +575,9 @@
     <p class="shared-note">
       {borderMode === 'shared'
         ? photos.length === 1
-          ? 'Border is based on the photo’s shorter side.'
-          : `Same ${formatPercent(currentBorderPercent)}% border on all ${photos.length} photos.`
-        : `Editing ${activePhoto?.fileName ?? 'selected photo'} at ${formatPercent(currentBorderPercent)}%.`}
+          ? `Border is based on ${borderBasisText(borderBasis)}.`
+          : `Same ${formatPercent(currentBorderPercent)}% of ${borderBasisText(borderBasis)} on all ${photos.length} photos.`
+        : `Editing ${activePhoto?.fileName ?? 'selected photo'} at ${formatPercent(currentBorderPercent)}% of ${borderBasisText(borderBasis)}.`}
     </p>
 
     {#if uploadNotice}
@@ -775,7 +817,8 @@
     gap: 1.5rem;
   }
 
-  .mode-control {
+  .mode-control,
+  .basis-control {
     display: inline-flex;
     align-self: center;
     border: 1px solid #ccc;
