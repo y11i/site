@@ -1,23 +1,54 @@
 <script lang="ts">
-  const MIN_BORDER = 0;
-  const MAX_BORDER = 200;
+  import { zipStore } from '../../lib/zipStore';
+
+  const MIN_BORDER_PERCENT = 0;
+  const MAX_BORDER_PERCENT = 30;
+  const BORDER_PERCENT_STEP = 0.1;
+  const BORDER_PERCENT_DECIMALS = 2;
+  const MAX_PHOTOS = 20;
   const DIAL_DEG_MIN = -135;
   const DIAL_DEG_MAX = 135;
 
-  let imageSrc = $state<string | null>(null);
-  let imageEl = $state<HTMLImageElement | null>(null);
-  let fileName = $state('photo');
-  let borderPx = $state(40);
-  let borderColor = $state('#ffffff');
+  type BorderMode = 'shared' | 'individual';
+
+  type Photo = {
+    id: number;
+    fileName: string;
+    src: string;
+    image: HTMLImageElement;
+    borderPercent: number;
+    borderColor: string;
+  };
+
+  let photos = $state<Photo[]>([]);
+  let activeId = $state<number | null>(null);
+  let borderMode = $state<BorderMode>('shared');
+  let sharedBorderPercent = $state(5);
+  let sharedBorderColor = $state('#ffffff');
+  let individualDirty = $state(false);
   let sampling = $state(false);
   let eyeDropperSupported = $state(false);
   let dialDragging = $state(false);
   let dialEl = $state<HTMLButtonElement | null>(null);
   let previewCanvas = $state<HTMLCanvasElement | null>(null);
+  let addInput = $state<HTMLInputElement | null>(null);
+  let downloading = $state(false);
+  let uploadNotice = $state('');
+  let nextId = 1;
   let sampleCanvas: HTMLCanvasElement | null = null;
 
+  const activePhoto = $derived(photos.find((photo) => photo.id === activeId) ?? photos[0] ?? null);
+  const currentBorderPercent = $derived(
+    borderMode === 'individual' ? activePhoto?.borderPercent ?? sharedBorderPercent : sharedBorderPercent
+  );
+  const currentBorderColor = $derived(
+    borderMode === 'individual' ? activePhoto?.borderColor ?? sharedBorderColor : sharedBorderColor
+  );
+
   const dialAngle = $derived(
-    DIAL_DEG_MIN + ((borderPx - MIN_BORDER) / (MAX_BORDER - MIN_BORDER)) * (DIAL_DEG_MAX - DIAL_DEG_MIN)
+    DIAL_DEG_MIN +
+      ((currentBorderPercent - MIN_BORDER_PERCENT) / (MAX_BORDER_PERCENT - MIN_BORDER_PERCENT)) *
+        (DIAL_DEG_MAX - DIAL_DEG_MIN)
   );
 
   $effect(() => {
@@ -25,18 +56,20 @@
   });
 
   $effect(() => {
-    // Track border + color so the preview redraws when controls change.
-    void borderPx;
-    void borderColor;
-    if (!imageSrc || !previewCanvas || !imageEl?.complete) return;
+    void currentBorderPercent;
+    void currentBorderColor;
+    void activePhoto;
+    if (!previewCanvas || !activePhoto?.image.complete) return;
+    prepareSampleCanvas();
     drawPreview();
   });
 
   function drawPreview() {
     const canvas = previewCanvas;
-    const img = imageEl;
+    const img = activePhoto?.image;
     if (!canvas || !img || !img.naturalWidth) return;
 
+    const borderPx = borderPixelsFor(img, currentBorderPercent);
     const maxPreview = Math.min(560, typeof window !== 'undefined' ? window.innerWidth - 48 : 560);
     const paddedW = img.naturalWidth + borderPx * 2;
     const paddedH = img.naturalHeight + borderPx * 2;
@@ -48,62 +81,174 @@
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.fillStyle = borderColor;
+    ctx.fillStyle = currentBorderColor;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     const inset = borderPx * scale;
-    ctx.drawImage(
-      img,
-      inset,
-      inset,
-      canvas.width - inset * 2,
-      canvas.height - inset * 2
-    );
+    ctx.drawImage(img, inset, inset, canvas.width - inset * 2, canvas.height - inset * 2);
   }
 
-  function handleFile(file: File | undefined) {
-    if (!file || !file.type.startsWith('image/')) return;
+  function normalizeBorderPercent(value: number) {
+    if (!Number.isFinite(value)) return currentBorderPercent;
+    const clamped = Math.min(MAX_BORDER_PERCENT, Math.max(MIN_BORDER_PERCENT, value));
+    return Math.round(clamped * 10 ** BORDER_PERCENT_DECIMALS) / 10 ** BORDER_PERCENT_DECIMALS;
+  }
 
-    if (imageSrc) URL.revokeObjectURL(imageSrc);
+  function snapBorderPercent(value: number) {
+    return normalizeBorderPercent(Math.round(value / BORDER_PERCENT_STEP) * BORDER_PERCENT_STEP);
+  }
 
-    const name = file.name.replace(/\.[^.]+$/, '') || 'photo';
-    fileName = name;
-    imageSrc = URL.createObjectURL(file);
-    sampleCanvas = null;
+  function formatPercent(value: number) {
+    return normalizeBorderPercent(value)
+      .toFixed(BORDER_PERCENT_DECIMALS)
+      .replace(/\.?0+$/, '');
+  }
+
+  function borderPixelsFor(img: HTMLImageElement, percent: number) {
+    if (percent <= 0) return 0;
+    const shorterSide = Math.min(img.naturalWidth, img.naturalHeight);
+    return Math.max(1, Math.round(shorterSide * (percent / 100)));
+  }
+
+  function loadImage(src: string) {
+    return new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
+  }
+
+  async function addFiles(fileList: FileList | File[] | undefined) {
+    if (!fileList) return;
+
+    const images = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
+    if (images.length === 0) return;
+
+    const remaining = MAX_PHOTOS - photos.length;
+    if (remaining <= 0) {
+      uploadNotice = `You can frame up to ${MAX_PHOTOS} photos at once.`;
+      return;
+    }
+
+    const selected = images.slice(0, remaining);
+    uploadNotice =
+      images.length > remaining
+        ? `Added ${selected.length}; ${MAX_PHOTOS} photos max.`
+        : '';
+
+    const loaded: Photo[] = [];
+    for (const file of selected) {
+      const src = URL.createObjectURL(file);
+      try {
+        const image = await loadImage(src);
+        loaded.push({
+          id: nextId++,
+          fileName: file.name.replace(/\.[^.]+$/, '') || 'photo',
+          src,
+          image,
+          borderPercent: currentBorderPercent,
+          borderColor: currentBorderColor
+        });
+      } catch {
+        URL.revokeObjectURL(src);
+      }
+    }
+
+    if (loaded.length === 0) return;
+
+    const wasEmpty = photos.length === 0;
+    photos = [...photos, ...loaded];
+    if (wasEmpty || activeId === null) activeId = loaded[0].id;
     sampling = false;
   }
 
   function onFileInput(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
-    handleFile(input.files?.[0]);
+    void addFiles(input.files ?? undefined);
+    input.value = '';
   }
 
   function onDrop(e: DragEvent) {
     e.preventDefault();
-    handleFile(e.dataTransfer?.files?.[0]);
+    void addFiles(e.dataTransfer?.files ?? undefined);
   }
 
-  function onImageLoad(e: Event) {
-    imageEl = e.currentTarget as HTMLImageElement;
-    prepareSampleCanvas();
-    drawPreview();
+  function selectPhoto(id: number) {
+    activeId = id;
+    sampling = false;
+  }
+
+  function setBorderMode(next: BorderMode) {
+    if (borderMode === next) return;
+    sampling = false;
+    dialDragging = false;
+
+    if (next === 'individual' && !individualDirty) {
+      photos = photos.map((photo) => ({
+        ...photo,
+        borderPercent: sharedBorderPercent,
+        borderColor: sharedBorderColor
+      }));
+    }
+
+    borderMode = next;
+  }
+
+  function setCurrentBorderPercent(value: number) {
+    const next = normalizeBorderPercent(value);
+    if (borderMode === 'individual' && activePhoto) {
+      individualDirty = true;
+      photos = photos.map((photo) => (photo.id === activePhoto.id ? { ...photo, borderPercent: next } : photo));
+      return;
+    }
+
+    sharedBorderPercent = next;
+  }
+
+  function setCurrentBorderColor(value: string) {
+    if (borderMode === 'individual' && activePhoto) {
+      individualDirty = true;
+      photos = photos.map((photo) => (photo.id === activePhoto.id ? { ...photo, borderColor: value } : photo));
+      return;
+    }
+
+    sharedBorderColor = value;
+  }
+
+  function removePhoto(id: number) {
+    const photo = photos.find((item) => item.id === id);
+    if (photo) URL.revokeObjectURL(photo.src);
+
+    const next = photos.filter((item) => item.id !== id);
+    photos = next;
+
+    if (activeId === id) {
+      activeId = next[0]?.id ?? null;
+      sampling = false;
+    }
+
+    if (next.length === 0) {
+      sampleCanvas = null;
+    }
   }
 
   function prepareSampleCanvas() {
-    if (!imageEl) return;
+    const img = activePhoto?.image;
+    if (!img) return;
     const canvas = document.createElement('canvas');
-    canvas.width = imageEl.naturalWidth;
-    canvas.height = imageEl.naturalHeight;
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
-    ctx.drawImage(imageEl, 0, 0);
+    ctx.drawImage(img, 0, 0);
     sampleCanvas = canvas;
   }
 
   function borderFromAngle(deg: number) {
     const clamped = Math.min(DIAL_DEG_MAX, Math.max(DIAL_DEG_MIN, deg));
     const t = (clamped - DIAL_DEG_MIN) / (DIAL_DEG_MAX - DIAL_DEG_MIN);
-    return Math.round(MIN_BORDER + t * (MAX_BORDER - MIN_BORDER));
+    return snapBorderPercent(MIN_BORDER_PERCENT + t * (MAX_BORDER_PERCENT - MIN_BORDER_PERCENT));
   }
 
   function angleFromPointer(clientX: number, clientY: number) {
@@ -121,12 +266,12 @@
     e.preventDefault();
     dialDragging = true;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    borderPx = borderFromAngle(angleFromPointer(e.clientX, e.clientY));
+    setCurrentBorderPercent(borderFromAngle(angleFromPointer(e.clientX, e.clientY)));
   }
 
   function onDialPointerMove(e: PointerEvent) {
     if (!dialDragging) return;
-    borderPx = borderFromAngle(angleFromPointer(e.clientX, e.clientY));
+    setCurrentBorderPercent(borderFromAngle(angleFromPointer(e.clientX, e.clientY)));
   }
 
   function onDialPointerUp(e: PointerEvent) {
@@ -139,7 +284,7 @@
   }
 
   function onColorInput(e: Event) {
-    borderColor = (e.currentTarget as HTMLInputElement).value;
+    setCurrentBorderColor((e.currentTarget as HTMLInputElement).value);
   }
 
   async function useEyeDropper() {
@@ -148,7 +293,7 @@
       // @ts-expect-error EyeDropper is not in all TS lib versions
       const dropper = new window.EyeDropper();
       const result = await dropper.open();
-      borderColor = result.sRGBHex;
+      setCurrentBorderColor(result.sRGBHex);
       sampling = false;
     } catch {
       // user cancelled
@@ -160,91 +305,315 @@
   }
 
   function sampleFromPreview(e: MouseEvent) {
-    if (!sampling || !previewCanvas || !imageEl || !sampleCanvas) return;
+    if (!sampling || !previewCanvas || !activePhoto?.image || !sampleCanvas) return;
 
     const rect = previewCanvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * previewCanvas.width;
     const y = ((e.clientY - rect.top) / rect.height) * previewCanvas.height;
-    const scale = previewCanvas.width / (imageEl.naturalWidth + borderPx * 2);
+    const borderPx = borderPixelsFor(activePhoto.image, currentBorderPercent);
+    const scale = previewCanvas.width / (activePhoto.image.naturalWidth + borderPx * 2);
     const inset = borderPx * scale;
 
     if (x < inset || y < inset || x >= previewCanvas.width - inset || y >= previewCanvas.height - inset) {
       return;
     }
 
-    const imgX = ((x - inset) / (previewCanvas.width - inset * 2)) * imageEl.naturalWidth;
-    const imgY = ((y - inset) / (previewCanvas.height - inset * 2)) * imageEl.naturalHeight;
+    const imgX = ((x - inset) / (previewCanvas.width - inset * 2)) * activePhoto.image.naturalWidth;
+    const imgY = ((y - inset) / (previewCanvas.height - inset * 2)) * activePhoto.image.naturalHeight;
     const ctx = sampleCanvas.getContext('2d');
     if (!ctx) return;
 
     const pixel = ctx.getImageData(Math.floor(imgX), Math.floor(imgY), 1, 1).data;
-    borderColor = rgbToHex(pixel[0], pixel[1], pixel[2]);
+    setCurrentBorderColor(rgbToHex(pixel[0], pixel[1], pixel[2]));
     sampling = false;
   }
 
   function rgbToHex(r: number, g: number, b: number) {
-    return (
-      '#' +
-      [r, g, b]
-        .map((v) => v.toString(16).padStart(2, '0'))
-        .join('')
-    );
+    return '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('');
   }
 
-  function download() {
-    if (!imageEl?.naturalWidth) return;
+  function settingsFor(photo: Photo) {
+    return borderMode === 'individual'
+      ? { borderPercent: photo.borderPercent, borderColor: photo.borderColor }
+      : { borderPercent: sharedBorderPercent, borderColor: sharedBorderColor };
+  }
 
+  function framePhoto(photo: Photo) {
+    const { borderPercent, borderColor } = settingsFor(photo);
+    const img = photo.image;
+    const borderPx = borderPixelsFor(img, borderPercent);
     const out = document.createElement('canvas');
-    out.width = imageEl.naturalWidth + borderPx * 2;
-    out.height = imageEl.naturalHeight + borderPx * 2;
+    out.width = img.naturalWidth + borderPx * 2;
+    out.height = img.naturalHeight + borderPx * 2;
     const ctx = out.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) return null;
 
     ctx.fillStyle = borderColor;
     ctx.fillRect(0, 0, out.width, out.height);
-    ctx.drawImage(imageEl, borderPx, borderPx);
-
-    out.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${fileName}-framed.png`;
-      a.click();
-      URL.revokeObjectURL(url);
-    }, 'image/png');
+    ctx.drawImage(img, borderPx, borderPx);
+    return out;
   }
 
-  function clearImage() {
-    if (imageSrc) URL.revokeObjectURL(imageSrc);
-    imageSrc = null;
-    imageEl = null;
+  function canvasToBlob(canvas: HTMLCanvasElement) {
+    return new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('Could not export image'));
+      }, 'image/png');
+    });
+  }
+
+  function triggerDownload(blob: Blob, name: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function downloadCurrent() {
+    if (!activePhoto) return;
+    const canvas = framePhoto(activePhoto);
+    if (!canvas) return;
+    const blob = await canvasToBlob(canvas);
+    triggerDownload(blob, `${activePhoto.fileName}-framed.png`);
+  }
+
+  async function downloadAll() {
+    if (photos.length === 0) return;
+
+    downloading = true;
+    try {
+      const used = new Set<string>();
+      const files: { name: string; data: Uint8Array }[] = [];
+
+      for (const photo of photos) {
+        const canvas = framePhoto(photo);
+        if (!canvas) continue;
+        const blob = await canvasToBlob(canvas);
+        const data = new Uint8Array(await blob.arrayBuffer());
+        files.push({ name: uniqueName(`${photo.fileName}-framed.png`, used), data });
+      }
+
+      if (files.length > 0) triggerDownload(zipStore(files), 'framed-photos.zip');
+    } finally {
+      downloading = false;
+    }
+  }
+
+  function uniqueName(name: string, used: Set<string>) {
+    if (!used.has(name)) {
+      used.add(name);
+      return name;
+    }
+
+    const dot = name.lastIndexOf('.');
+    const stem = dot === -1 ? name : name.slice(0, dot);
+    const ext = dot === -1 ? '' : name.slice(dot);
+    let i = 2;
+    let next = `${stem}-${i}${ext}`;
+    while (used.has(next)) {
+      i += 1;
+      next = `${stem}-${i}${ext}`;
+    }
+    used.add(next);
+    return next;
+  }
+
+  function clearAll() {
+    for (const photo of photos) URL.revokeObjectURL(photo.src);
+    photos = [];
+    activeId = null;
     sampleCanvas = null;
     sampling = false;
+    uploadNotice = '';
   }
 </script>
 
+{#snippet controls()}
+  <div class="controls">
+    {#if photos.length > 1}
+      <div class="mode-control" aria-label="Border editing mode">
+        <button
+          type="button"
+          class="mode-btn"
+          class:active={borderMode === 'shared'}
+          onclick={() => setBorderMode('shared')}
+        >
+          Same border
+        </button>
+        <button
+          type="button"
+          class="mode-btn"
+          class:active={borderMode === 'individual'}
+          onclick={() => setBorderMode('individual')}
+        >
+          Per photo
+        </button>
+      </div>
+    {/if}
+
+    <div class="control">
+      <span class="label">Border {formatPercent(currentBorderPercent)}%</span>
+      <button
+        type="button"
+        class="dial"
+        class:dragging={dialDragging}
+        bind:this={dialEl}
+        style="--angle: {dialAngle}deg"
+        aria-label="Border size dial"
+        aria-valuemin={MIN_BORDER_PERCENT}
+        aria-valuemax={MAX_BORDER_PERCENT}
+        aria-valuenow={currentBorderPercent}
+        aria-valuetext="{formatPercent(currentBorderPercent)}% of the shorter image side"
+        role="slider"
+        onpointerdown={onDialPointerDown}
+        onpointermove={onDialPointerMove}
+        onpointerup={onDialPointerUp}
+        onpointercancel={onDialPointerUp}
+      >
+        <span class="dial-tick"></span>
+        <span class="dial-value">{formatPercent(currentBorderPercent)}%</span>
+      </button>
+      <div class="percent-row">
+        <input
+          class="border-range"
+          type="range"
+          min={MIN_BORDER_PERCENT}
+          max={MAX_BORDER_PERCENT}
+          step={BORDER_PERCENT_STEP}
+          value={currentBorderPercent}
+          aria-label="Border size"
+          oninput={(e) => {
+            setCurrentBorderPercent((e.currentTarget as HTMLInputElement).valueAsNumber);
+          }}
+        />
+        <label class="percent-input">
+          <input
+            type="number"
+            min={MIN_BORDER_PERCENT}
+            max={MAX_BORDER_PERCENT}
+            step="any"
+            value={formatPercent(currentBorderPercent)}
+            aria-label="Border percentage"
+            oninput={(e) => {
+              setCurrentBorderPercent((e.currentTarget as HTMLInputElement).valueAsNumber);
+            }}
+          />
+          <span>%</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="control">
+      <span class="label">Color</span>
+      <div class="color-row">
+        <label class="swatch" style="--swatch: {currentBorderColor}">
+          <input type="color" value={currentBorderColor} oninput={onColorInput} />
+        </label>
+        <code class="hex">{currentBorderColor}</code>
+        <button
+          type="button"
+          class="btn ghost"
+          class:active={sampling}
+          onclick={toggleSample}
+          disabled={!activePhoto}
+        >
+          From photo
+        </button>
+        {#if eyeDropperSupported}
+          <button type="button" class="btn ghost" onclick={useEyeDropper}>
+            Eyedropper
+          </button>
+        {/if}
+      </div>
+    </div>
+
+    <p class="shared-note">
+      {borderMode === 'shared'
+        ? photos.length === 1
+          ? 'Border is based on the photo’s shorter side.'
+          : `Same ${formatPercent(currentBorderPercent)}% border on all ${photos.length} photos.`
+        : `Editing ${activePhoto?.fileName ?? 'selected photo'} at ${formatPercent(currentBorderPercent)}%.`}
+    </p>
+
+    {#if uploadNotice}
+      <p class="upload-notice">{uploadNotice}</p>
+    {/if}
+
+    <div class="actions">
+      {#if photos.length > 1}
+        <button type="button" class="btn primary" onclick={downloadAll} disabled={downloading}>
+          {downloading ? 'Zipping…' : 'Download ZIP'}
+        </button>
+        <button type="button" class="btn ghost" onclick={downloadCurrent} disabled={downloading}>
+          This one
+        </button>
+      {:else}
+        <button type="button" class="btn primary" onclick={downloadAll} disabled={downloading}>
+          {downloading ? 'Zipping…' : 'Download ZIP'}
+        </button>
+      {/if}
+      <button type="button" class="btn ghost" onclick={() => addInput?.click()} disabled={photos.length >= MAX_PHOTOS}>
+        Add photos
+      </button>
+      <button type="button" class="btn ghost" onclick={clearAll}>
+        Clear
+      </button>
+    </div>
+  </div>
+{/snippet}
+
 <div class="tool">
-  {#if !imageSrc}
-    <label
-      class="dropzone"
-      ondragover={(e) => e.preventDefault()}
-      ondrop={onDrop}
-    >
-      <input type="file" accept="image/*" onchange={onFileInput} />
-      <span class="dropzone-title">Drop a photo</span>
-      <span class="dropzone-hint">or click to upload</span>
+  <input
+    class="hidden-input"
+    type="file"
+    accept="image/*"
+    multiple
+    bind:this={addInput}
+    onchange={onFileInput}
+  />
+
+  {#if photos.length === 0}
+    <label class="dropzone" ondragover={(e) => e.preventDefault()} ondrop={onDrop}>
+      <input type="file" accept="image/*" multiple onchange={onFileInput} />
+      <span class="dropzone-title">Drop photos</span>
+      <span class="dropzone-hint">up to {MAX_PHOTOS} at once</span>
     </label>
   {:else}
     <div class="workspace">
+      {@render controls()}
+
+      <div class="filmstrip" role="list">
+        {#each photos as photo (photo.id)}
+          <div class="thumb-wrap" role="listitem">
+            <button
+              type="button"
+              class="thumb"
+              class:active={photo.id === activePhoto?.id}
+              style="--swatch: {settingsFor(photo).borderColor}"
+              onclick={() => selectPhoto(photo.id)}
+              aria-label="Select {photo.fileName}"
+              aria-pressed={photo.id === activePhoto?.id}
+            >
+              <img src={photo.src} alt="" />
+            </button>
+            {#if photos.length > 1}
+              <button
+                type="button"
+                class="thumb-remove"
+                onclick={() => removePhoto(photo.id)}
+                aria-label="Remove {photo.fileName}"
+              >
+                ×
+              </button>
+            {/if}
+          </div>
+        {/each}
+      </div>
+
       <div class="preview-wrap">
-        <!-- Hidden source image for canvas drawing -->
-        <img
-          class="source"
-          src={imageSrc}
-          alt=""
-          onload={onImageLoad}
-        />
         <canvas
           class="preview"
           class:sampling
@@ -256,75 +625,6 @@
           <p class="sample-hint">Click the photo to grab a color</p>
         {/if}
       </div>
-
-      <div class="controls">
-        <div class="control">
-          <span class="label">Border {borderPx}px</span>
-          <button
-            type="button"
-            class="dial"
-            class:dragging={dialDragging}
-            bind:this={dialEl}
-            style="--angle: {dialAngle}deg"
-            aria-label="Border size dial"
-            aria-valuemin={MIN_BORDER}
-            aria-valuemax={MAX_BORDER}
-            aria-valuenow={borderPx}
-            role="slider"
-            onpointerdown={onDialPointerDown}
-            onpointermove={onDialPointerMove}
-            onpointerup={onDialPointerUp}
-            onpointercancel={onDialPointerUp}
-          >
-            <span class="dial-tick"></span>
-            <span class="dial-value">{borderPx}</span>
-          </button>
-          <input
-            class="border-range"
-            type="range"
-            min={MIN_BORDER}
-            max={MAX_BORDER}
-            value={borderPx}
-            aria-label="Border size"
-            oninput={(e) => {
-              borderPx = Number((e.currentTarget as HTMLInputElement).value);
-            }}
-          />
-        </div>
-
-        <div class="control">
-          <span class="label">Color</span>
-          <div class="color-row">
-            <label class="swatch" style="--swatch: {borderColor}">
-              <input type="color" value={borderColor} oninput={onColorInput} />
-            </label>
-            <code class="hex">{borderColor}</code>
-            <button
-              type="button"
-              class="btn ghost"
-              class:active={sampling}
-              onclick={toggleSample}
-              disabled={!imageEl}
-            >
-              From photo
-            </button>
-            {#if eyeDropperSupported}
-              <button type="button" class="btn ghost" onclick={useEyeDropper}>
-                Eyedropper
-              </button>
-            {/if}
-          </div>
-        </div>
-
-        <div class="actions">
-          <button type="button" class="btn primary" onclick={download}>
-            Download
-          </button>
-          <button type="button" class="btn ghost" onclick={clearImage}>
-            New photo
-          </button>
-        </div>
-      </div>
     </div>
   {/if}
 </div>
@@ -334,6 +634,14 @@
     width: 100%;
     max-width: 640px;
     margin: 0 auto;
+  }
+
+  .hidden-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
   }
 
   .dropzone {
@@ -380,19 +688,66 @@
     gap: 1.75rem;
   }
 
+  .filmstrip {
+    display: flex;
+    gap: 0.6rem;
+    overflow-x: auto;
+    padding: 0.15rem 0.15rem 0.4rem;
+  }
+
+  .thumb-wrap {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  .thumb {
+    display: block;
+    padding: 0;
+    border: 3px solid var(--swatch);
+    background: var(--swatch);
+    cursor: pointer;
+    line-height: 0;
+    opacity: 0.55;
+    transition: opacity 140ms ease, box-shadow 140ms ease;
+  }
+
+  .thumb.active,
+  .thumb:hover {
+    opacity: 1;
+  }
+
+  .thumb.active {
+    box-shadow: 0 0 0 1px #333;
+  }
+
+  .thumb img {
+    display: block;
+    width: 64px;
+    height: 64px;
+    object-fit: cover;
+  }
+
+  .thumb-remove {
+    position: absolute;
+    top: -0.35rem;
+    right: -0.35rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    padding: 0;
+    border: 1px solid #ccc;
+    border-radius: 50%;
+    background: #fff;
+    color: #333;
+    font-size: 0.85rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
   .preview-wrap {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 0.6rem;
-  }
-
-  .source {
-    position: absolute;
-    width: 0;
-    height: 0;
-    opacity: 0;
-    pointer-events: none;
   }
 
   .preview {
@@ -418,6 +773,36 @@
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
+  }
+
+  .mode-control {
+    display: inline-flex;
+    align-self: center;
+    border: 1px solid #ccc;
+    background: #fff;
+  }
+
+  .mode-btn {
+    appearance: none;
+    border: 0;
+    border-right: 1px solid #ccc;
+    background: transparent;
+    color: #666;
+    font: inherit;
+    font-size: 0.78rem;
+    letter-spacing: 0.02em;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+  }
+
+  .mode-btn:last-child {
+    border-right: 0;
+  }
+
+  .mode-btn:hover,
+  .mode-btn.active {
+    background: #333;
+    color: #fff;
   }
 
   .control {
@@ -479,9 +864,42 @@
     pointer-events: none;
   }
 
+  .percent-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    width: min(320px, 100%);
+  }
+
   .border-range {
+    flex: 1 1 180px;
+    min-width: 0;
     width: min(220px, 100%);
     accent-color: #333;
+  }
+
+  .percent-input {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: #666;
+    font-size: 0.82rem;
+  }
+
+  .percent-input input {
+    width: 4.4rem;
+    border: 1px solid #ccc;
+    background: #fff;
+    color: #333;
+    font: inherit;
+    padding: 0.42rem 0.45rem;
+    text-align: right;
+  }
+
+  .percent-input input:focus {
+    border-color: #333;
+    outline: none;
   }
 
   .color-row {
@@ -517,6 +935,20 @@
     min-width: 5.5rem;
     color: #333;
     font-size: 0.85rem;
+  }
+
+  .shared-note {
+    margin: 0;
+    color: #999;
+    font-size: 0.8rem;
+    text-align: center;
+  }
+
+  .upload-notice {
+    margin: -0.75rem 0 0;
+    color: #666;
+    font-size: 0.8rem;
+    text-align: center;
   }
 
   .actions {
