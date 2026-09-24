@@ -18,10 +18,9 @@ function isActive(slug: string): boolean {
 
 <header class="nav-container">
   <h1 class="page-title">
-    <strongs>Ysc
-    </strong>
+    <a href="/">Y.S. Choi</a>
   </h1>
-  <nav class="nav-links">
+  <nav class="nav-links" aria-label="Site">
     {pages.map((page, index) => (
       <>
         <a
@@ -40,25 +39,37 @@ function isActive(slug: string): boolean {
 <style>
   .nav-container {
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 4.5rem 1rem 2rem;
-    text-align: center;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 1rem;
+    row-gap: 0.75rem;
+    max-width: 500px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 6rem 2rem 2rem;
   }
 
   .page-title {
+    flex: 0 0 auto;
     font-size: clamp(2rem, 4vw, 2.25rem);
     font-weight: 400;
-    margin: 0 0 0.5rem 0;
+    margin: 0;
     letter-spacing: 0.03em;
     line-height: 1.2;
   }
 
+  .page-title a {
+    color: inherit;
+    text-decoration: none;
+  }
+
   .nav-links {
+    flex: 0 0 auto;
+    margin-left: auto;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
     gap: 0.5rem;
     font-size: 0.9rem;
     font-weight: 400;
@@ -69,6 +80,7 @@ function isActive(slug: string): boolean {
     text-decoration: none;
     transition: color 0.2s ease;
     padding: 0.25rem 0;
+    white-space: nowrap;
   }
 
   .nav-links a:hover {
@@ -86,9 +98,18 @@ function isActive(slug: string): boolean {
     user-select: none;
   }
 
+  /* Stack nav before title + links would overflow the content column */
+  @media (max-width: 520px) {
+    .nav-links {
+      flex: 1 1 100%;
+      margin-left: 0;
+      justify-content: flex-start;
+    }
+  }
+
   @media (max-width: 640px) {
     .nav-container {
-      padding: 3.5rem 1rem 1.75rem;
+      padding: 5rem 2rem 1.75rem;
     }
   }
 </style>

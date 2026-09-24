@@ -83,7 +83,7 @@
         point.y = viewport.y - point.y;
         point.y += u_scrollY;
 
-        float spacing = 35.0;
+        float spacing = 40.0;
         vec2 cell = floor((point - 1.0 + spacing * 0.5) / spacing);
         vec2 dotCenter = cell * spacing + 1.0 + bobField(cell);
         float distanceToDot = length(point - dotCenter);
@@ -96,7 +96,7 @@
 
         float alphaNoise = perlin(cell * 0.24 + vec2(u_time * 0.22, u_time * -0.18));
         float alphaWave = 0.78 + 0.16 * sin(cell.x * 0.21 + cell.y * 0.34 + u_time * 0.80) + alphaNoise * 0.12;
-        float alpha = dot * 0.30 * alphaWave;
+        float alpha = dot * 0.38 * alphaWave;
 
         gl_FragColor = vec4(0.0, 0.0, 0.0, alpha);
       }
