@@ -36,8 +36,10 @@ export function placePhotos(photos: PhotoMetrics[], canvasWidth: number): Scratc
     return { placements: [], height: 0 };
   }
 
-  const pad = Math.max(14, Math.round(canvasWidth * 0.018));
   const singleColumn = canvasWidth < 600;
+  const pad = singleColumn
+    ? Math.max(8, Math.round(canvasWidth * 0.012))
+    : Math.max(14, Math.round(canvasWidth * 0.018));
   const gapMin = singleColumn ? 20 : 18;
   const gapMax = singleColumn ? 28 : 34;
   const targetWidth = singleColumn
@@ -53,7 +55,7 @@ export function placePhotos(photos: PhotoMetrics[], canvasWidth: number): Scratc
     const photo = photos[index];
     const rng = mulberry32(hashString(`${photo.id}:${index}`));
     const looseness = index / lastIndex;
-    const scale = singleColumn ? 0.94 : 0.9 + rng() * 0.12;
+    const scale = singleColumn ? 1 : 0.9 + rng() * 0.12;
     const portrait = photo.aspectRatio < 1;
     // Landscapes read smaller than portraits at the same width; give them a bump.
     const orientationScale = singleColumn ? 1 : portrait ? 0.94 : 1.23;

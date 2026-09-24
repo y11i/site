@@ -100,6 +100,12 @@
     max-width: 90%;
   }
 
+  @media (max-width: 640px) {
+    .embla__slide {
+      max-width: 100%;
+    }
+  }
+
   .embla__slide img {
     max-width: 100%;
     max-height: 300px;

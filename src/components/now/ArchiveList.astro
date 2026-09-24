@@ -65,9 +65,11 @@ function formatDate(dateString: string): string {
 
 <style>
 	.archive-section {
+		box-sizing: border-box;
+		width: 100%;
 		max-width: 500px;
-		margin: 0 auto;
-		padding: 2rem 2rem;
+		margin-inline: auto;
+		padding: 2rem;
 		position: relative;
 	}
 
@@ -126,7 +128,7 @@ function formatDate(dateString: string): string {
 	}
 
 	.archive-entry-title {
-    font-size: 14px;
+    font-size: 1rem;
 		font-weight: 400;
 		margin: 0;
 		color: #333;
@@ -168,8 +170,9 @@ function formatDate(dateString: string): string {
 
 	@media (max-width: 640px) {
 		.archive-section {
-			padding: 2rem;
+			max-width: 100%;
 			margin-top: 2rem;
+			padding: 1.5rem 2rem;
 		}
 
 		.archive-title {

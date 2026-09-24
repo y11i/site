@@ -21,9 +21,11 @@
 
 <style>
   .photos-gallery {
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    padding: 0.25rem 0.5rem 3rem;
+    width: 100%;
+    padding: 0.25rem 0 3rem;
     min-height: 80vh;
   }
 

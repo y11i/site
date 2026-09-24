@@ -98,18 +98,21 @@ function isActive(slug: string): boolean {
     user-select: none;
   }
 
-  /* Stack nav before title + links would overflow the content column */
-  @media (max-width: 520px) {
-    .nav-links {
-      flex: 1 1 100%;
-      margin-left: 0;
-      justify-content: flex-start;
-    }
-  }
-
   @media (max-width: 640px) {
     .nav-container {
+      flex-direction: column;
+      align-items: flex-start;
       padding: 5rem 2rem 1.75rem;
+    }
+
+    .page-title {
+      font-size: 2rem;
+    }
+
+    .nav-links {
+      width: 100%;
+      margin-left: 0;
+      justify-content: flex-start;
     }
   }
 </style>
