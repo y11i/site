@@ -31,8 +31,11 @@
 
   .gallery-container {
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     display: flex;
     justify-content: center;
+    overflow-x: clip;
   }
 
   .no-photos {

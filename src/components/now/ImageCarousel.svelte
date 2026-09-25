@@ -80,10 +80,16 @@
     display: flex;
     flex-direction: column;
     gap: 1rem;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .embla {
     overflow: hidden;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
   }
 
   .embla__container {
@@ -97,6 +103,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    min-width: 0;
     max-width: 90%;
   }
 

@@ -56,14 +56,8 @@ const paragraphs = content
     max-width: 500px;
     margin-inline: auto;
     padding: 2rem;
+    min-width: 0;
     position: relative;
-  }
-
-  @media (max-width: 640px) {
-    .now-entry {
-      max-width: 100%;
-      padding: 1.5rem 2rem;
-    }
   }
 
   .now-entry.with-lines::before {
@@ -96,7 +90,9 @@ const paragraphs = content
 
   .entry-meta {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
+    gap: 0.25rem 1rem;
     margin-bottom: 2rem;
     font-size: 0.9rem;
     color: #666;
@@ -143,5 +139,9 @@ const paragraphs = content
 
   .entry-carousel {
     margin-top: 0.5rem;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
   }
 </style>

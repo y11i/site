@@ -168,7 +168,10 @@
   .scratch-canvas {
     position: relative;
     width: 100%;
+    max-width: 100%;
+    min-width: 0;
     min-height: 70vh;
+    overflow-x: clip;
   }
 
   .photo-pin {
