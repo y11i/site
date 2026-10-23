@@ -5,13 +5,13 @@ import PhotoBorder from '../../components/tools/PhotoBorder.svelte';
 
 <Layout
 	title="Frame"
-	description="Add a border to a photo and download it."
+	description="Frame photos with even borders, square canvases, or a matching ratio for a mixed photo stack."
 	noIndex={true}
 >
 	<div class="frame-page">
 		<h1 data-motion="text">Frame</h1>
 		<p class="lede" data-motion="text">
-			Upload up to 20 photos, frame by percentage, download a zip.
+			A little room around your photos. Add borders, make them square, or fit a mixed stack to one canvas.
 		</p>
 		<div data-motion="media">
 			<PhotoBorder client:load />
@@ -36,7 +36,7 @@ import PhotoBorder from '../../components/tools/PhotoBorder.svelte';
 
 	.lede {
 		margin: 0 0 2rem;
-		color: #999;
+		color: #777;
 		font-size: 0.9rem;
 		line-height: 1.5;
 	}

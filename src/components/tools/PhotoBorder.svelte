@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte';
   import { zipStore } from '../../lib/zipStore';
+  import { frameGeometry, stackCanvas, stackReferenceIndex } from '../../lib/frameGeometry.js';
 
   const MIN_BORDER_PERCENT = 0;
   const MAX_BORDER_PERCENT = 30;
@@ -11,6 +13,7 @@
 
   type BorderMode = 'shared' | 'individual';
   type BorderBasis = 'overall' | 'width' | 'height';
+  type CanvasMode = 'original' | 'square' | 'stack';
 
   type Photo = {
     id: number;
@@ -25,6 +28,7 @@
   let activeId = $state<number | null>(null);
   let borderMode = $state<BorderMode>('shared');
   let borderBasis = $state<BorderBasis>('width');
+  let canvasMode = $state<CanvasMode>('original');
   let sharedBorderPercent = $state(5);
   let sharedBorderColor = $state('#ffffff');
   let individualDirty = $state(false);
@@ -35,6 +39,8 @@
   let previewCanvas = $state<HTMLCanvasElement | null>(null);
   let addInput = $state<HTMLInputElement | null>(null);
   let downloading = $state(false);
+  let uploading = $state(false);
+  let exportNotice = $state('');
   let uploadNotice = $state('');
   let nextId = 1;
   let sampleCanvas: HTMLCanvasElement | null = null;
@@ -47,6 +53,22 @@
     borderMode === 'individual' ? activePhoto?.borderColor ?? sharedBorderColor : sharedBorderColor
   );
 
+  const photoSizes = $derived(photos.map((photo) => ({
+    width: photo.image.naturalWidth,
+    height: photo.image.naturalHeight,
+    percent: settingsFor(photo).borderPercent
+  })));
+  const stackReference = $derived(photos[stackReferenceIndex(photoSizes)] ?? null);
+  const stackSize = $derived(stackReference
+    ? stackCanvas(photoSizes, stackReference.image.naturalWidth / stackReference.image.naturalHeight)
+    : null);
+  const activeGeometry = $derived(activePhoto ? geometryFor(activePhoto) : null);
+  const percentBasis = $derived(canvasMode === 'original' ? borderBasisText(borderBasis) : 'the longer image side');
+
+  onDestroy(() => {
+    for (const photo of photos) URL.revokeObjectURL(photo.src);
+  });
+
   const dialAngle = $derived(
     DIAL_DEG_MIN +
       ((currentBorderPercent - MIN_BORDER_PERCENT) / (MAX_BORDER_PERCENT - MIN_BORDER_PERCENT)) *
@@ -58,37 +80,30 @@
   });
 
   $effect(() => {
-    void currentBorderPercent;
-    void currentBorderColor;
-    void borderBasis;
-    void activePhoto;
-    if (!previewCanvas || !activePhoto?.image.complete) return;
-    prepareSampleCanvas();
-    drawPreview();
+    if (!previewCanvas || !activePhoto?.image.complete || !activeGeometry) return;
+    drawPreview(previewCanvas, activePhoto.image, activeGeometry, currentBorderColor);
   });
 
-  function drawPreview() {
-    const canvas = previewCanvas;
-    const img = activePhoto?.image;
-    if (!canvas || !img || !img.naturalWidth) return;
+  $effect(() => {
+    if (activePhoto) prepareSampleCanvas();
+  });
 
-    const borderPx = borderPixelsFor(img, currentBorderPercent, borderBasis);
-    const maxPreview = Math.min(560, typeof window !== 'undefined' ? window.innerWidth - 48 : 560);
-    const paddedW = img.naturalWidth + borderPx * 2;
-    const paddedH = img.naturalHeight + borderPx * 2;
-    const scale = Math.min(1, maxPreview / Math.max(paddedW, paddedH));
+  function geometryFor(photo: Photo) {
+    return frameGeometry(photo.image.naturalWidth, photo.image.naturalHeight,
+      settingsFor(photo).borderPercent, borderBasis, canvasMode, stackSize);
+  }
 
-    canvas.width = Math.round(paddedW * scale);
-    canvas.height = Math.round(paddedH * scale);
-
+  function drawPreview(canvas: HTMLCanvasElement, img: HTMLImageElement,
+    geometry: ReturnType<typeof frameGeometry>, color: string) {
+    const scale = Math.min(1, 560 / Math.max(geometry.width, geometry.height));
+    canvas.width = Math.max(1, Math.round(geometry.width * scale));
+    canvas.height = Math.max(1, Math.round(geometry.height * scale));
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-
-    ctx.fillStyle = currentBorderColor;
+    ctx.fillStyle = color;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    const inset = borderPx * scale;
-    ctx.drawImage(img, inset, inset, canvas.width - inset * 2, canvas.height - inset * 2);
+    ctx.drawImage(img, geometry.x * scale, geometry.y * scale,
+      geometry.imageWidth * scale, geometry.imageHeight * scale);
   }
 
   function normalizeBorderPercent(value: number) {
@@ -107,17 +122,6 @@
       .replace(/\.?0+$/, '');
   }
 
-  function borderPixelsFor(img: HTMLImageElement, percent: number, basis: BorderBasis) {
-    if (percent <= 0) return 0;
-    const base =
-      basis === 'width'
-        ? img.naturalWidth
-        : basis === 'height'
-          ? img.naturalHeight
-          : Math.min(img.naturalWidth, img.naturalHeight);
-    return Math.max(1, Math.round(base * (percent / 100)));
-  }
-
   function loadImage(src: string) {
     return new Promise<HTMLImageElement>((resolve, reject) => {
       const img = new Image();
@@ -128,10 +132,13 @@
   }
 
   async function addFiles(fileList: FileList | File[] | undefined) {
-    if (!fileList) return;
+    if (!fileList || uploading || downloading) return;
 
     const images = Array.from(fileList).filter((file) => file.type.startsWith('image/'));
-    if (images.length === 0) return;
+    if (images.length === 0) {
+      uploadNotice = 'Choose image files to add to your stack.';
+      return;
+    }
 
     const remaining = MAX_PHOTOS - photos.length;
     if (remaining <= 0) {
@@ -145,7 +152,9 @@
         ? `Added ${selected.length}; ${MAX_PHOTOS} photos max.`
         : '';
 
+    uploading = true;
     const loaded: Photo[] = [];
+    let failed = 0;
     for (const file of selected) {
       const src = URL.createObjectURL(file);
       try {
@@ -159,10 +168,13 @@
           borderColor: currentBorderColor
         });
       } catch {
+        failed += 1;
         URL.revokeObjectURL(src);
       }
     }
 
+    uploading = false;
+    if (failed) uploadNotice = [uploadNotice, `Could not read ${failed} image${failed === 1 ? '' : 's'}. Try JPEG, PNG, or WebP.`].filter(Boolean).join(' ');
     if (loaded.length === 0) return;
 
     const wasEmpty = photos.length === 0;
@@ -322,16 +334,14 @@
     const rect = previewCanvas.getBoundingClientRect();
     const x = ((e.clientX - rect.left) / rect.width) * previewCanvas.width;
     const y = ((e.clientY - rect.top) / rect.height) * previewCanvas.height;
-    const borderPx = borderPixelsFor(activePhoto.image, currentBorderPercent, borderBasis);
-    const scale = previewCanvas.width / (activePhoto.image.naturalWidth + borderPx * 2);
-    const inset = borderPx * scale;
-
-    if (x < inset || y < inset || x >= previewCanvas.width - inset || y >= previewCanvas.height - inset) {
-      return;
-    }
-
-    const imgX = ((x - inset) / (previewCanvas.width - inset * 2)) * activePhoto.image.naturalWidth;
-    const imgY = ((y - inset) / (previewCanvas.height - inset * 2)) * activePhoto.image.naturalHeight;
+    const geometry = activeGeometry;
+    if (!geometry) return;
+    const outputX = x / previewCanvas.width * geometry.width;
+    const outputY = y / previewCanvas.height * geometry.height;
+    if (outputX < geometry.x || outputY < geometry.y ||
+      outputX >= geometry.x + geometry.imageWidth || outputY >= geometry.y + geometry.imageHeight) return;
+    const imgX = (outputX - geometry.x) / geometry.imageWidth * activePhoto.image.naturalWidth;
+    const imgY = (outputY - geometry.y) / geometry.imageHeight * activePhoto.image.naturalHeight;
     const ctx = sampleCanvas.getContext('2d');
     if (!ctx) return;
 
@@ -350,19 +360,15 @@
       : { borderPercent: sharedBorderPercent, borderColor: sharedBorderColor, borderBasis };
   }
 
-  function framePhoto(photo: Photo) {
-    const { borderPercent, borderColor, borderBasis } = settingsFor(photo);
-    const img = photo.image;
-    const borderPx = borderPixelsFor(img, borderPercent, borderBasis);
+  function framePhoto(photo: Photo, geometry = geometryFor(photo), color = settingsFor(photo).borderColor) {
     const out = document.createElement('canvas');
-    out.width = img.naturalWidth + borderPx * 2;
-    out.height = img.naturalHeight + borderPx * 2;
+    out.width = geometry.width;
+    out.height = geometry.height;
     const ctx = out.getContext('2d');
-    if (!ctx) return null;
-
-    ctx.fillStyle = borderColor;
+    if (!ctx) throw new Error('Could not create image');
+    ctx.fillStyle = color;
     ctx.fillRect(0, 0, out.width, out.height);
-    ctx.drawImage(img, borderPx, borderPx);
+    ctx.drawImage(photo.image, geometry.x, geometry.y, geometry.imageWidth, geometry.imageHeight);
     return out;
   }
 
@@ -385,30 +391,41 @@
   }
 
   async function downloadCurrent() {
-    if (!activePhoto) return;
-    const canvas = framePhoto(activePhoto);
-    if (!canvas) return;
-    const blob = await canvasToBlob(canvas);
-    triggerDownload(blob, `${activePhoto.fileName}-framed.png`);
+    if (!activePhoto || downloading) return;
+    downloading = true;
+    exportNotice = '';
+    const photo = activePhoto;
+    try {
+      const canvas = framePhoto(photo);
+      const blob = await canvasToBlob(canvas);
+      triggerDownload(blob, `${photo.fileName}-framed.png`);
+    } catch {
+      exportNotice = 'Could not export this photo. Try a smaller image.';
+    } finally {
+      downloading = false;
+    }
   }
 
   async function downloadAll() {
-    if (photos.length === 0) return;
+    if (photos.length === 0 || downloading) return;
 
     downloading = true;
+    exportNotice = '';
     try {
       const used = new Set<string>();
       const files: { name: string; data: Uint8Array }[] = [];
 
-      for (const photo of photos) {
-        const canvas = framePhoto(photo);
-        if (!canvas) continue;
+      const exports = photos.map((photo) => ({ photo, geometry: geometryFor(photo), color: settingsFor(photo).borderColor }));
+      for (const { photo, geometry, color } of exports) {
+        const canvas = framePhoto(photo, geometry, color);
         const blob = await canvasToBlob(canvas);
         const data = new Uint8Array(await blob.arrayBuffer());
         files.push({ name: uniqueName(`${photo.fileName}-framed.png`, used), data });
       }
 
       if (files.length > 0) triggerDownload(zipStore(files), 'framed-photos.zip');
+    } catch {
+      exportNotice = 'Could not export the stack. Try fewer or smaller images.';
     } finally {
       downloading = false;
     }
@@ -440,6 +457,7 @@
     sampleCanvas = null;
     sampling = false;
     uploadNotice = '';
+    exportNotice = '';
   }
 
   function borderBasisText(basis: BorderBasis) {
@@ -471,33 +489,62 @@
     {/if}
 
     <div class="control">
-      <span class="label">Border {formatPercent(currentBorderPercent)}%</span>
-      <div class="basis-control" aria-label="Border percentage basis">
-        <button
-          type="button"
-          class="mode-btn"
-          class:active={borderBasis === 'overall'}
-          onclick={() => setBorderBasis('overall')}
-        >
-          Overall
-        </button>
-        <button
-          type="button"
-          class="mode-btn"
-          class:active={borderBasis === 'width'}
-          onclick={() => setBorderBasis('width')}
-        >
-          Width
-        </button>
-        <button
-          type="button"
-          class="mode-btn"
-          class:active={borderBasis === 'height'}
-          onclick={() => setBorderBasis('height')}
-        >
-          Height
-        </button>
+      <span class="label" id="canvas-label">Canvas</span>
+      <div class="canvas-options" role="group" aria-labelledby="canvas-label">
+        {#each [{ value: 'original', label: 'Original', detail: 'Even border' }, { value: 'square', label: 'Square', detail: '1 : 1' }, { value: 'stack', label: 'Match stack', detail: 'One ratio for all' }] as option}
+          <button type="button" class="canvas-option" class:active={canvasMode === option.value}
+            aria-pressed={canvasMode === option.value} disabled={downloading}
+            onclick={() => { canvasMode = option.value as CanvasMode; sampling = false; }}>
+            <span>{option.label}</span><small>{option.detail}</small>
+          </button>
+        {/each}
       </div>
+      <p class="canvas-note">
+        {#if canvasMode === 'square'}
+          A square canvas, with your whole photo centered. The percentage sets each left/right border for landscapes, or top/bottom border for portraits.
+        {:else if canvasMode === 'stack'}
+          Every photo exports at the same size and ratio, matching the tallest portrait in your stack. Landscapes get extra space above and below.
+          {#if stackReference}
+            <span class="reference-note">Matching {stackReference.fileName}{stackReference.image.naturalWidth >= stackReference.image.naturalHeight ? ' · Add a portrait to switch the whole stack to portrait.' : ''}</span>
+          {/if}
+        {:else}
+          An even border around each photo, keeping its original dimensions inside the frame.
+        {/if}
+      </p>
+    </div>
+
+    <div class="control">
+      <span class="label">Border {formatPercent(currentBorderPercent)}%</span>
+      {#if canvasMode === 'original'}
+        <div class="basis-control" aria-label="Border percentage basis">
+          <button
+            type="button"
+            class="mode-btn"
+            class:active={borderBasis === 'overall'}
+            onclick={() => setBorderBasis('overall')}
+          >
+            Overall
+          </button>
+          <button
+            type="button"
+            class="mode-btn"
+            class:active={borderBasis === 'width'}
+            onclick={() => setBorderBasis('width')}
+          >
+            Width
+          </button>
+          <button
+            type="button"
+            class="mode-btn"
+            class:active={borderBasis === 'height'}
+            onclick={() => setBorderBasis('height')}
+          >
+            Height
+          </button>
+        </div>
+      {:else}
+        <span class="basis-note">Percentage of the longer image side, per edge</span>
+      {/if}
       <button
         type="button"
         class="dial"
@@ -508,12 +555,19 @@
         aria-valuemin={MIN_BORDER_PERCENT}
         aria-valuemax={MAX_BORDER_PERCENT}
         aria-valuenow={currentBorderPercent}
-        aria-valuetext="{formatPercent(currentBorderPercent)}% of {borderBasisText(borderBasis)}"
+        aria-valuetext="{formatPercent(currentBorderPercent)}% of {percentBasis}"
         role="slider"
         onpointerdown={onDialPointerDown}
         onpointermove={onDialPointerMove}
         onpointerup={onDialPointerUp}
         onpointercancel={onDialPointerUp}
+        onkeydown={(e) => {
+          const direction = e.key === 'ArrowUp' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowDown' || e.key === 'ArrowLeft' ? -1 : 0;
+          if (direction || e.key === 'Home' || e.key === 'End') {
+            e.preventDefault();
+            setCurrentBorderPercent(e.key === 'Home' ? MIN_BORDER_PERCENT : e.key === 'End' ? MAX_BORDER_PERCENT : snapBorderPercent(currentBorderPercent + direction * BORDER_PERCENT_STEP));
+          }
+        }}
       >
         <span class="dial-tick"></span>
         <span class="dial-value">{formatPercent(currentBorderPercent)}%</span>
@@ -552,7 +606,7 @@
       <span class="label">Color</span>
       <div class="color-row">
         <label class="swatch" style="--swatch: {currentBorderColor}">
-          <input type="color" value={currentBorderColor} oninput={onColorInput} />
+          <input type="color" aria-label="Border color" value={currentBorderColor} oninput={onColorInput} />
         </label>
         <code class="hex">{currentBorderColor}</code>
         <button
@@ -575,32 +629,28 @@
     <p class="shared-note">
       {borderMode === 'shared'
         ? photos.length === 1
-          ? `Border is based on ${borderBasisText(borderBasis)}.`
-          : `Same ${formatPercent(currentBorderPercent)}% of ${borderBasisText(borderBasis)} on all ${photos.length} photos.`
-        : `Editing ${activePhoto?.fileName ?? 'selected photo'} at ${formatPercent(currentBorderPercent)}% of ${borderBasisText(borderBasis)}.`}
+          ? `Border is based on ${percentBasis}.`
+          : `Same ${formatPercent(currentBorderPercent)}% of ${percentBasis} on all ${photos.length} photos.`
+        : `Editing ${activePhoto?.fileName ?? 'selected photo'} at ${formatPercent(currentBorderPercent)}% of ${percentBasis}.`}
     </p>
 
-    {#if uploadNotice}
-      <p class="upload-notice">{uploadNotice}</p>
+    {#if exportNotice}
+      <p class="upload-notice" role="alert">{exportNotice}</p>
     {/if}
 
     <div class="actions">
+      <button type="button" class="btn primary" onclick={downloadCurrent} disabled={downloading || uploading}>
+        {downloading ? 'Preparing…' : photos.length === 1 ? 'Download PNG' : 'Download this photo'}
+      </button>
       {#if photos.length > 1}
-        <button type="button" class="btn primary" onclick={downloadAll} disabled={downloading}>
-          {downloading ? 'Zipping…' : 'Download ZIP'}
-        </button>
-        <button type="button" class="btn ghost" onclick={downloadCurrent} disabled={downloading}>
-          This one
-        </button>
-      {:else}
-        <button type="button" class="btn primary" onclick={downloadAll} disabled={downloading}>
-          {downloading ? 'Zipping…' : 'Download ZIP'}
+        <button type="button" class="btn ghost" onclick={downloadAll} disabled={downloading || uploading}>
+          Download ZIP ({photos.length})
         </button>
       {/if}
-      <button type="button" class="btn ghost" onclick={() => addInput?.click()} disabled={photos.length >= MAX_PHOTOS}>
-        Add photos
+      <button type="button" class="btn ghost" onclick={() => addInput?.click()} disabled={uploading || downloading || photos.length >= MAX_PHOTOS}>
+        {uploading ? 'Adding…' : 'Add photos'}
       </button>
-      <button type="button" class="btn ghost" onclick={clearAll}>
+      <button type="button" class="btn ghost" onclick={clearAll} disabled={uploading || downloading}>
         Clear
       </button>
     </div>
@@ -614,48 +664,53 @@
     accept="image/*"
     multiple
     bind:this={addInput}
+    disabled={uploading || downloading}
     onchange={onFileInput}
   />
 
   {#if photos.length === 0}
     <label class="dropzone" ondragover={(e) => e.preventDefault()} ondrop={onDrop}>
-      <input type="file" accept="image/*" multiple onchange={onFileInput} />
-      <span class="dropzone-title">Drop photos</span>
-      <span class="dropzone-hint">up to {MAX_PHOTOS} at once</span>
+      <input type="file" accept="image/*" multiple disabled={uploading} onchange={onFileInput} />
+      <span class="dropzone-title">{uploading ? 'Adding photos…' : 'Drop photos or click to browse'}</span>
+      <span class="dropzone-hint">Up to {MAX_PHOTOS} · processed on your device</span>
+      <span class="dropzone-hint">Even borders, square frames, or one ratio for a mixed stack</span>
     </label>
   {:else}
-    <div class="workspace">
+    <div class="workspace" role="region" aria-label="Photo stack" ondragover={(e) => e.preventDefault()} ondrop={onDrop}>
       {@render controls()}
 
       <div class="filmstrip" role="list">
         {#each photos as photo (photo.id)}
+          {@const geometry = geometryFor(photo)}
           <div class="thumb-wrap" role="listitem">
             <button
               type="button"
               class="thumb"
               class:active={photo.id === activePhoto?.id}
-              style="--swatch: {settingsFor(photo).borderColor}"
+              style="--swatch: {settingsFor(photo).borderColor}; width: {72 * geometry.width / Math.max(geometry.width, geometry.height)}px; height: {72 * geometry.height / Math.max(geometry.width, geometry.height)}px"
               onclick={() => selectPhoto(photo.id)}
               aria-label="Select {photo.fileName}"
               aria-pressed={photo.id === activePhoto?.id}
             >
-              <img src={photo.src} alt="" />
+              <img src={photo.src} alt="" style="left: {geometry.x / geometry.width * 100}%; top: {geometry.y / geometry.height * 100}%; width: {geometry.imageWidth / geometry.width * 100}%; height: {geometry.imageHeight / geometry.height * 100}%" />
             </button>
-            {#if photos.length > 1}
-              <button
-                type="button"
-                class="thumb-remove"
-                onclick={() => removePhoto(photo.id)}
-                aria-label="Remove {photo.fileName}"
-              >
-                ×
-              </button>
-            {/if}
+            <button
+              type="button"
+              class="thumb-remove"
+              onclick={() => removePhoto(photo.id)}
+              disabled={downloading || uploading}
+              aria-label="Remove {photo.fileName}"
+            >
+              ×
+            </button>
           </div>
         {/each}
       </div>
 
       <div class="preview-wrap">
+        {#if activePhoto && activeGeometry}
+          <p class="preview-caption">{activePhoto.fileName} <span>{activeGeometry.width} × {activeGeometry.height} px{canvasMode === 'square' ? ' · 1:1' : canvasMode === 'stack' ? ' · shared canvas' : ''}</span></p>
+        {/if}
         <canvas
           class="preview"
           class:sampling
@@ -668,6 +723,9 @@
         {/if}
       </div>
     </div>
+  {/if}
+  {#if uploadNotice}
+    <p class="upload-notice" role="status">{uploadNotice}</p>
   {/if}
 </div>
 
@@ -694,6 +752,7 @@
     gap: 0.4rem;
     min-height: 280px;
     padding: 2rem;
+    text-align: center;
     border: 1px dashed #ccc;
     background: rgba(255, 255, 255, 0.55);
     cursor: pointer;
@@ -732,7 +791,9 @@
 
   .filmstrip {
     display: flex;
-    gap: 0.6rem;
+    gap: 0.8rem;
+    align-items: center;
+    min-height: 84px;
     overflow-x: auto;
     padding: 0.15rem 0.15rem 0.4rem;
   }
@@ -745,7 +806,8 @@
   .thumb {
     display: block;
     padding: 0;
-    border: 3px solid var(--swatch);
+    position: relative;
+    border: 0;
     background: var(--swatch);
     cursor: pointer;
     line-height: 0;
@@ -764,9 +826,8 @@
 
   .thumb img {
     display: block;
-    width: 64px;
-    height: 64px;
-    object-fit: cover;
+    position: absolute;
+    object-fit: contain;
   }
 
   .thumb-remove {
@@ -810,6 +871,40 @@
     color: #666;
     font-size: 0.8rem;
   }
+
+  .canvas-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: min(420px, 100%);
+    border: 1px solid #ccc;
+    background: #fff;
+  }
+
+  .canvas-option {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    align-items: center;
+    padding: 0.8rem 0.5rem;
+    border: 0;
+    border-right: 1px solid #ccc;
+    background: transparent;
+    color: #666;
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .canvas-option:last-child { border-right: 0; }
+  .canvas-option.active { background: #333; color: #fff; }
+  .canvas-option small { font-size: 0.7rem; opacity: 0.75; }
+  .canvas-option:hover:not(.active) { background: #f5f5f5; }
+  .canvas-option:focus-visible, button:focus-visible { outline: 2px solid #666; outline-offset: 3px; }
+  .canvas-note { margin: 0; max-width: 420px; text-align: center; color: #777; font-size: 0.8rem; line-height: 1.6; }
+  .reference-note { display: block; margin-top: 0.35rem; overflow-wrap: anywhere; }
+  .basis-note { color: #888; font-size: 0.75rem; }
+  .preview-caption { margin: 0 0 0.3rem; color: #555; font-size: 0.8rem; text-align: center; overflow-wrap: anywhere; }
+  .preview-caption span { display: block; margin-top: 0.3rem; color: #888; font-size: 0.75rem; }
 
   .controls {
     display: flex;
@@ -988,7 +1083,7 @@
   }
 
   .upload-notice {
-    margin: -0.75rem 0 0;
+    margin: 0.75rem 0 0;
     color: #666;
     font-size: 0.8rem;
     text-align: center;
