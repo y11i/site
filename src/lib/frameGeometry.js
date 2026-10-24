@@ -2,8 +2,8 @@
 /** @typedef {'overall' | 'width' | 'height'} BorderBasis */
 
 /**
- * Original mode keeps the existing percentage basis. Fixed canvases measure
- * each minimum border against the photo's long side before fitting it.
+ * Original mode keeps the existing percentage basis. Square frames and the
+ * stack reference measure their border against the photo's long side.
  * @param {number} width
  * @param {number} height
  * @param {number} percent
@@ -28,16 +28,23 @@ export function stackReferenceIndex(sizes) {
 }
 
 /**
- * One canvas size for every export, including when borders differ per photo.
+ * Match the reference photo INCLUDING its even border. Preserving the bare
+ * photo ratio would add letterboxing to the reference portrait itself.
  * @param {{ width: number, height: number, percent: number }[]} sizes
- * @param {number} ratio
  */
-export function stackCanvas(sizes, ratio) {
-  const longest = Math.max(1, ...sizes.map(({ width, height, percent }) =>
+export function stackCanvas(sizes) {
+  const reference = sizes[stackReferenceIndex(sizes)];
+  if (!reference) return { width: 1, height: 1 };
+  const border = borderPixels(reference.width, reference.height, reference.percent, 'overall', 'stack');
+  const framedWidth = reference.width + border * 2;
+  const framedHeight = reference.height + border * 2;
+  const longest = Math.max(...sizes.map(({ width, height, percent }) =>
     Math.max(width, height) + 2 * borderPixels(width, height, percent, 'overall', 'stack')));
-  return ratio >= 1
-    ? { width: longest, height: Math.max(1, Math.round(longest / ratio)) }
-    : { width: Math.max(1, Math.round(longest * ratio)), height: longest };
+  const scale = longest / Math.max(framedWidth, framedHeight);
+  return {
+    width: Math.max(1, Math.round(framedWidth * scale)),
+    height: Math.max(1, Math.round(framedHeight * scale))
+  };
 }
 
 /**
@@ -58,9 +65,13 @@ export function frameGeometry(width, height, percent, basis, mode, stack = null)
   if (mode === 'square') {
     canvasWidth = canvasHeight = Math.max(canvasWidth, canvasHeight);
   } else if (mode === 'stack' && stack) {
-    scale = Math.min(stack.width / canvasWidth, stack.height / canvasHeight);
     canvasWidth = stack.width;
     canvasHeight = stack.height;
+    // Use one border inset in output pixels on BOTH axes, then contain the
+    // image inside it. Shared settings give landscapes the same side borders
+    // as portraits rather than shrinking each photo's border independently.
+    const inset = Math.round(Math.max(canvasWidth, canvasHeight) * percent / (100 + 2 * percent));
+    scale = Math.min((canvasWidth - inset * 2) / width, (canvasHeight - inset * 2) / height);
   }
   const imageWidth = width * scale;
   const imageHeight = height * scale;

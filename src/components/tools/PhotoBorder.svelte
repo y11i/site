@@ -60,10 +60,10 @@
   })));
   const stackReference = $derived(photos[stackReferenceIndex(photoSizes)] ?? null);
   const stackSize = $derived(stackReference
-    ? stackCanvas(photoSizes, stackReference.image.naturalWidth / stackReference.image.naturalHeight)
+    ? stackCanvas(photoSizes)
     : null);
   const activeGeometry = $derived(activePhoto ? geometryFor(activePhoto) : null);
-  const percentBasis = $derived(canvasMode === 'original' ? borderBasisText(borderBasis) : 'the longer image side');
+  const percentBasis = $derived(canvasMode === 'original' ? borderBasisText(borderBasis) : canvasMode === 'stack' ? 'the reference photo’s longer side' : 'the longer image side');
 
   onDestroy(() => {
     for (const photo of photos) URL.revokeObjectURL(photo.src);
@@ -102,8 +102,10 @@
     if (!ctx) return;
     ctx.fillStyle = color;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(img, geometry.x * scale, geometry.y * scale,
-      geometry.imageWidth * scale, geometry.imageHeight * scale);
+    const scaleX = canvas.width / geometry.width;
+    const scaleY = canvas.height / geometry.height;
+    ctx.drawImage(img, geometry.x * scaleX, geometry.y * scaleY,
+      geometry.imageWidth * scaleX, geometry.imageHeight * scaleY);
   }
 
   function normalizeBorderPercent(value: number) {
@@ -503,7 +505,7 @@
         {#if canvasMode === 'square'}
           A square canvas, with your whole photo centered. The percentage sets each left/right border for landscapes, or top/bottom border for portraits.
         {:else if canvasMode === 'stack'}
-          Every photo exports at the same size and ratio, matching the tallest portrait in your stack. Landscapes get extra space above and below.
+          Every photo shares a canvas based on the tallest portrait with its even border. Same border keeps the base border width identical across the stack; other photo shapes get extra padding to fit.
           {#if stackReference}
             <span class="reference-note">Matching {stackReference.fileName}{stackReference.image.naturalWidth >= stackReference.image.naturalHeight ? ' · Add a portrait to switch the whole stack to portrait.' : ''}</span>
           {/if}
@@ -543,7 +545,7 @@
           </button>
         </div>
       {:else}
-        <span class="basis-note">Percentage of the longer image side, per edge</span>
+        <span class="basis-note">Percentage of {canvasMode === 'stack' ? 'the reference photo’s longer side' : 'the longer image side'}, per edge</span>
       {/if}
       <button
         type="button"
